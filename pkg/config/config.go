@@ -54,3 +54,74 @@ func Load() (*Config, error) {
 	return &config, nil
 
 }
+
+func (config *Config) Save() error {
+
+	path, err := getConfigFilePath()
+	if err != nil {
+		return fmt.Errorf("couldn't get home directory: %w", err)
+	}
+
+	configDir := filepath.Dir(path)
+
+	err = os.MkdirAll(configDir, 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("couldn't marshal JSON: %w", err)
+	}
+
+	err = os.WriteFile(path, data, 0644)
+	if err != nil {
+		return fmt.Errorf("could not write data to file: %w", err)
+	}
+
+	return nil
+
+}
+
+func Set(key, value string) error {
+
+	currentConfig, err := Load()
+	if err != nil {
+		return fmt.Errorf("could not load config file: %w", err)
+	}
+
+	switch key {
+	case "api-url":
+		currentConfig.ApiURL = value
+	case "api-key":
+		currentConfig.ApiKey = value
+	default:
+		return fmt.Errorf("invalid key: %s", key)
+	}
+
+	err = currentConfig.Save()
+	if err != nil {
+		return fmt.Errorf("could not save config file: %w", err)
+	}
+
+	return nil
+
+}
+
+func Get(key string) (string, error) {
+
+	currentConfig, err := Load()
+	if err != nil {
+		return "", fmt.Errorf("could not load config file: %w", err)
+	}
+
+	switch key {
+	case "api-url":
+		return currentConfig.ApiURL, nil
+	case "api-key":
+		return currentConfig.ApiKey, nil
+	default:
+		return "", fmt.Errorf("invalid key: %s", key)
+	}
+
+}

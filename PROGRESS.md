@@ -112,7 +112,199 @@ go run main.go --invalid-flag
 
 ---
 
-## 🔜 Next Session: Phase 2 - Configuration Management
+## 🚧 Phase 2: Configuration Management - IN PROGRESS
+
+### Progress So Far:
+1. ✅ Created `pkg/config/config.go` file
+2. ✅ Defined `Config` struct with JSON tags
+3. ✅ Implemented `getConfigFilePath()` helper function
+4. ✅ Implemented `Load()` function (needs 1 typo fix)
+5. ⏸️ Need to implement `Save()` function
+6. ⏸️ Need to implement `Set()` function
+7. ⏸️ Need to implement `Get()` function
+8. ⏸️ Need to implement `Clear()` function
+9. ⏸️ Need to create `cmd/config.go`
+
+### What You've Learned So Far:
+
+#### 1. **Hidden Files and Directories**
+- Files/directories starting with `.` are hidden in Unix/Linux/Mac
+- View with `ls -a` (not just `ls`)
+- Common examples: `.gitconfig`, `.ssh/`, `.bashrc`
+- Used for config files to keep home directory clean
+
+#### 2. **Error Wrapping in Go**
+```go
+// GOOD ✅
+return "", fmt.Errorf("failed to get home directory: %w", err)
+//                    ^lowercase  ^colon+space  ^%w wraps error
+
+// BAD ❌
+return "", fmt.Errorf("Error %w", err)  // Not descriptive, capitalized
+```
+- Always use `%w` to wrap errors (preserves error chain)
+- Use lowercase messages (errors appear mid-sentence when chained)
+- Add descriptive context with `: %w` pattern
+
+#### 3. **File Paths in Go**
+```go
+filepath.Join(homeDir, ".naturedopes-cli", "config.json")
+```
+- Cross-platform path handling (works on Windows/Linux/Mac)
+- Automatically uses correct separator (`/` or `\`)
+
+#### 4. **Config Storage Location**
+```go
+os.UserHomeDir()  // Gets /home/andrew (or equivalent)
+```
+- Config stored in user's home directory (not current working directory)
+- CLI can be run from anywhere, config is always accessible
+- Standard convention for CLI tools
+
+#### 5. **Structs and JSON Tags**
+```go
+type Config struct {
+    ApiURL string `json:"api_url"`  // Struct field ↔ JSON field
+    ApiKey string `json:"api_key"`
+}
+```
+- JSON tags map Go field names to JSON keys
+- Go field names are PascalCase (exported/public)
+- JSON keys are snake_case (convention)
+
+#### 6. **Pointers and Return Types**
+```go
+func Load() (*Config, error)  // Returns pointer to Config
+return nil, err              // Return nil for pointer on error
+return &config, nil          // Return pointer to struct on success
+```
+- `*Config` means "pointer to Config"
+- `&config` means "address of config"
+- Return `nil` when you can't return a valid pointer
+
+#### 7. **Checking File Existence**
+```go
+if _, err := os.Stat(path); os.IsNotExist(err) {
+    // File doesn't exist - return default config (not an error!)
+}
+```
+- Missing config file on first run is NORMAL
+- Return default values, don't treat as error
+
+#### 8. **JSON Unmarshaling**
+```go
+var config Config
+err := json.Unmarshal(fileContent, &config)
+// fileContent ([]byte) → config (struct)
+```
+- Converts JSON bytes to Go struct
+- Pass pointer to struct (`&config`) so it can be modified
+
+### Code You've Written:
+
+**pkg/config/config.go** (partial):
+```go
+package config
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+type Config struct {
+	ApiURL string `json:"api_url"`
+	ApiKey string `json:"api_key"`
+}
+
+func getConfigFilePath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("user home directory not found: %w", err)
+	}
+
+	fullPath := filepath.Join(homeDir, ".naturedopes-cli", "config.json")
+	return fullPath, nil
+}
+
+func Load() (*Config, error) {
+	path, err := getConfigFilePath()
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get home directory: %w", err)
+	}
+
+	// If config file doesn't exist, return default config
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return &Config{
+			ApiURL: "http://localhost8080",  // ⚠️ FIX: Missing colon after localhost
+			ApiKey: "",
+		}, nil
+	}
+
+	fileContent, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't read file: %w", err)
+	}
+
+	var config Config
+	err = json.Unmarshal(fileContent, &config)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't unmarshal JSON: %w", err)
+	}
+
+	return &config, nil
+}
+```
+
+### Next Steps When You Return:
+
+#### 1. Fix the typo in Load() (line 37)
+Change `"http://localhost8080"` to `"http://localhost:8080"`
+
+#### 2. Implement the `Save()` function
+This function will:
+- Get the config file path
+- Create the `.naturedopes-cli` directory if it doesn't exist
+- Convert Config struct to pretty JSON
+- Write the JSON to the file
+
+**New concepts you'll need:**
+```go
+// Create directory (and parents) if needed
+os.MkdirAll(dirPath, 0755)
+
+// Get directory from full path
+filepath.Dir("/home/user/.naturedopes-cli/config.json")
+// Returns: "/home/user/.naturedopes-cli"
+
+// Convert struct to pretty JSON
+data, err := json.MarshalIndent(cfg, "", "  ")
+//                                    ^^  ^^^^
+//                                    |   2-space indent
+//                                    no prefix
+
+// Write file with permissions
+os.WriteFile(path, data, 0644)
+//                       ^^^^
+//                       rw-r--r-- permissions
+```
+
+#### 3. Implement helper functions
+- `Set(key, value string) error` - Update a config value and save
+- `Get(key string) (string, error)` - Get a config value
+- `Clear() error` - Delete the config file
+
+#### 4. Create `cmd/config.go`
+This will create the CLI commands:
+- `naturedopes-cli config set api-url <url>`
+- `naturedopes-cli config get api-key`
+- `naturedopes-cli config list`
+- `naturedopes-cli config clear`
+
+---
+
+## 🔜 Next Session: Phase 2 - Configuration Management (Continued)
 
 ### What You'll Build Next:
 A config system so users don't have to type `--api-url` and `--api-key` every time!
@@ -167,7 +359,7 @@ Future commands automatically load this config!
 
 ```
 Phase 1: Foundation              ████████████████████ 100% ✅
-Phase 2: Configuration           ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 2: Configuration           ████████░░░░░░░░░░░░  40% 🚧
 Phase 3: API Client              ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 4: Images Commands         ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 5: Search Functionality    ░░░░░░░░░░░░░░░░░░░░   0%
@@ -175,7 +367,7 @@ Phase 6: API Keys Commands       ░░░░░░░░░░░░░░░�
 Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ██░░░░░░░░░░░░░░░░ 12.5% Complete
+Total Project: ███░░░░░░░░░░░░░░░ 17.5% Complete
 ```
 
 ---
