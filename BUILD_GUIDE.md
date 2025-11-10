@@ -5,6 +5,12 @@
 **Framework**: Cobra CLI
 **Learning Goal**: Hands-on Go development with guidance
 
+## ⚠️ IMPORTANT: Your Role
+**YOU write the code. Claude provides guidance, explanations, and reviews.**
+- Claude will NOT write code for you (that defeats the learning purpose!)
+- Claude will explain concepts, suggest structure, and help debug
+- You learn by doing, not by watching Claude code
+
 ---
 
 ## 📋 Project Overview
