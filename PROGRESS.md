@@ -1,8 +1,8 @@
 # Nature Dopes CLI - Progress Tracker
 
-**Last Updated**: 2025-11-10
-**Current Phase**: Phase 2 - Configuration Management (IN PROGRESS)
-**Next Phase**: Phase 2 - Complete Save() function and cmd/config.go
+**Last Updated**: 2025-11-17
+**Current Phase**: Phase 2 - Configuration Management (COMPLETED)
+**Next Phase**: Phase 3 - API Client Foundation
 
 ---
 
@@ -112,18 +112,21 @@ go run main.go --invalid-flag
 
 ---
 
-## 🚧 Phase 2: Configuration Management - IN PROGRESS
+## ✅ Phase 2: Configuration Management - COMPLETED
 
-### Progress So Far:
+### What You Built:
 1. ✅ Created `pkg/config/config.go` file
 2. ✅ Defined `Config` struct with JSON tags
 3. ✅ Implemented `getConfigFilePath()` helper function
-4. ✅ Implemented `Load()` function (needs 1 typo fix)
-5. ⏸️ Need to implement `Save()` function
-6. ⏸️ Need to implement `Set()` function
-7. ⏸️ Need to implement `Get()` function
-8. ⏸️ Need to implement `Clear()` function
-9. ⏸️ Need to create `cmd/config.go`
+4. ✅ Implemented `Load()` function
+5. ✅ Implemented `Save()` function (method on *Config)
+6. ✅ Implemented `Set()` function (using switch statement)
+7. ✅ Implemented `Get()` function (returns value and error)
+8. ✅ Created `cmd/config.go` - configCmd, setCmd, getCmd, listCmd
+9. ✅ Used `reflect` package to iterate through struct fields
+10. ✅ Extracted JSON tags for clean output formatting
+11. ✅ Added `init()` function to wire commands together
+12. ✅ Tested all commands successfully
 
 ### What You've Learned So Far:
 
@@ -135,20 +138,25 @@ go run main.go --invalid-flag
 
 #### 2. **Error Wrapping in Go**
 ```go
-// GOOD ✅
+// GOOD ✅ - Wrapping an error from another function
 return "", fmt.Errorf("failed to get home directory: %w", err)
 //                    ^lowercase  ^colon+space  ^%w wraps error
+
+// GOOD ✅ - Creating a new validation error
+return fmt.Errorf("invalid config key: %s", key)  // No %w, new error
 
 // BAD ❌
 return "", fmt.Errorf("Error %w", err)  // Not descriptive, capitalized
 ```
-- Always use `%w` to wrap errors (preserves error chain)
+- Use `%w` to wrap errors from other functions (preserves error chain)
+- Don't use `%w` for new validation errors you create
 - Use lowercase messages (errors appear mid-sentence when chained)
 - Add descriptive context with `: %w` pattern
 
 #### 3. **File Paths in Go**
 ```go
 filepath.Join(homeDir, ".naturedopes-cli", "config.json")
+filepath.Dir(fullPath)  // Extract directory from full path
 ```
 - Cross-platform path handling (works on Windows/Linux/Mac)
 - Automatically uses correct separator (`/` or `\`)
@@ -182,7 +190,23 @@ return &config, nil          // Return pointer to struct on success
 - `&config` means "address of config"
 - Return `nil` when you can't return a valid pointer
 
-#### 7. **Checking File Existence**
+#### 7. **Methods vs Functions**
+```go
+// Method (has a receiver)
+func (config *Config) Save() error {
+    // Called like: config.Save()
+}
+
+// Regular function
+func Load() (*Config, error) {
+    // Called like: Load()
+}
+```
+- Methods are bound to types, have receivers
+- `(config *Config)` is the receiver (like `this` or `self`)
+- Use pointer receivers (`*Config`) for efficiency and to modify data
+
+#### 8. **Checking File Existence**
 ```go
 if _, err := os.Stat(path); os.IsNotExist(err) {
     // File doesn't exist - return default config (not an error!)
@@ -191,18 +215,132 @@ if _, err := os.Stat(path); os.IsNotExist(err) {
 - Missing config file on first run is NORMAL
 - Return default values, don't treat as error
 
-#### 8. **JSON Unmarshaling**
+#### 9. **JSON Marshaling and Unmarshaling**
 ```go
+// Unmarshal: JSON → struct
 var config Config
 err := json.Unmarshal(fileContent, &config)
-// fileContent ([]byte) → config (struct)
+
+// Marshal: struct → JSON
+data, err := json.MarshalIndent(config, "", "  ")  // Pretty print with 2-space indent
 ```
-- Converts JSON bytes to Go struct
-- Pass pointer to struct (`&config`) so it can be modified
+- Unmarshal converts JSON bytes to Go struct
+- Marshal converts Go struct to JSON bytes
+- Pass pointer to struct (`&config`) for Unmarshal so it can be modified
+
+#### 10. **Switch Statements**
+```go
+switch key {
+case "api-url":
+    currentConfig.ApiURL = value
+case "api-key":
+    currentConfig.ApiKey = value
+default:
+    return fmt.Errorf("invalid key: %s", key)
+}
+```
+- Idiomatic Go way to handle multiple string comparisons
+- Cleaner than multiple `if/else if` statements
+- No need for `break` (unlike C/Java)
+
+#### 11. **Multiple Return Values**
+```go
+func Get(key string) (string, error) {
+    // Success: return value and nil error
+    return currentConfig.ApiURL, nil
+
+    // Error: return zero value and error
+    return "", fmt.Errorf("invalid key: %s", key)
+}
+```
+- Functions can return multiple values
+- Common pattern: return result and error
+- On error, return zero value (empty string, 0, nil, etc.) and error
+
+#### 12. **Creating Directories**
+```go
+os.MkdirAll(configDir, 0755)  // Creates directory and all parents
+```
+- Like `mkdir -p` in bash
+- Creates parent directories if needed
+- `0755` = permissions (rwxr-xr-x)
+
+#### 13. **Cobra Command Arguments**
+```go
+Run: func(cmd *cobra.Command, args []string) {
+    key := args[0]    // First argument
+    value := args[1]  // Second argument
+}
+Args: cobra.ExactArgs(2),  // Require exactly 2 arguments
+```
+- `args` slice contains command-line arguments
+- `cobra.ExactArgs(n)` validates argument count
+
+#### 14. **Printing Errors**
+```go
+// WRONG ❌
+fmt.Errorf("error: %w", err)  // Creates error but doesn't print it!
+
+// RIGHT ✅
+fmt.Printf("Error: %v\n", err)  // Prints the error
+return  // Exit the function
+```
+- `fmt.Errorf()` creates an error, doesn't print it
+- `fmt.Printf()` prints to stdout
+- Use `return` to exit early after errors
+
+#### 15. **Pointers: `*` and `&` Operators**
+```go
+// & = "address of" (get memory address)
+ptr := &variable
+
+// * in type = "pointer to"
+var ptr *string  // ptr is a pointer to a string
+
+// * for dereferencing = "value at address"
+value := *ptr  // Get the value that ptr points to
+```
+- `&variable` gets the memory address of variable
+- `*Type` in declaration means "pointer to Type"
+- `*pointer` gets the value at that memory address
+- Use with reflect: `reflect.ValueOf(*currentConfig)` to dereference
+
+#### 16. **Reflection (`reflect` package)**
+```go
+values := reflect.ValueOf(*currentConfig)  // Get reflection value
+types := values.Type()                     // Get type information
+
+for i := 0; i < values.NumField(); i++ {
+    field := types.Field(i)           // Field metadata
+    jsonTag := field.Tag.Get("json")  // Extract JSON tag
+    value := values.Field(i)          // Field value
+}
+```
+- Reflection allows inspecting struct fields at runtime
+- `NumField()` returns number of fields in struct
+- `Field(i).Tag.Get("json")` extracts JSON tag value
+- More flexible but slower than direct field access
+
+#### 17. **Multiple `init()` Functions**
+```go
+// In cmd/root.go
+func init() {
+    rootCmd.PersistentFlags().StringVar(...)
+}
+
+// In cmd/config.go (SEPARATE file, SAME package)
+func init() {
+    rootCmd.AddCommand(configCmd)
+}
+```
+- Multiple `init()` functions are allowed in the same package
+- Each file can have its own `init()`
+- All `init()` functions run automatically when package loads
+- Use for file-specific setup and initialization
 
 ### Code You've Written:
 
-**pkg/config/config.go** (partial):
+**pkg/config/config.go** (complete):
 ```go
 package config
 
@@ -237,7 +375,7 @@ func Load() (*Config, error) {
 	// If config file doesn't exist, return default config
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return &Config{
-			ApiURL: "http://localhost8080",  // ⚠️ FIX: Missing colon after localhost
+			ApiURL: "http://localhost:8080",
 			ApiKey: "",
 		}, nil
 	}
@@ -255,102 +393,216 @@ func Load() (*Config, error) {
 
 	return &config, nil
 }
+
+func (config *Config) Save() error {
+	path, err := getConfigFilePath()
+	if err != nil {
+		return fmt.Errorf("couldn't get home directory: %w", err)
+	}
+
+	configDir := filepath.Dir(path)
+
+	err = os.MkdirAll(configDir, 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory: %w", err)
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("couldn't marshal JSON: %w", err)
+	}
+
+	err = os.WriteFile(path, data, 0644)
+	if err != nil {
+		return fmt.Errorf("could not write data to file: %w", err)
+	}
+
+	return nil
+}
+
+func Set(key, value string) error {
+	currentConfig, err := Load()
+	if err != nil {
+		return fmt.Errorf("could not load config file: %w", err)
+	}
+
+	switch key {
+	case "api-url":
+		currentConfig.ApiURL = value
+	case "api-key":
+		currentConfig.ApiKey = value
+	default:
+		return fmt.Errorf("invalid key: %s", key)
+	}
+
+	err = currentConfig.Save()
+	if err != nil {
+		return fmt.Errorf("could not save config file: %w", err)
+	}
+
+	return nil
+}
+
+func Get(key string) (string, error) {
+	currentConfig, err := Load()
+	if err != nil {
+		return "", fmt.Errorf("could not load config file: %w", err)
+	}
+
+	switch key {
+	case "api-url":
+		return currentConfig.ApiURL, nil
+	case "api-key":
+		return currentConfig.ApiKey, nil
+	default:
+		return "", fmt.Errorf("invalid key: %s", key)
+	}
+}
+```
+
+**cmd/config.go** (partial - in progress):
+```go
+package cmd
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
+)
+
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage CLI configuration",
+}
+
+var setCmd = &cobra.Command{
+	Use:   "set",
+	Short: "Set a configuration value",
+	Args:  cobra.ExactArgs(2),
+	Run: func(command *cobra.Command, args []string) {
+		key := args[0]
+		value := args[1]
+
+		err := config.Set(key, value)
+		if err != nil {
+			fmt.Printf("could not set: %v\n", err)
+			return
+		}
+
+		fmt.Printf("New %v has been set", key)
+	},
+}
+
+// TODO: Add getCmd, listCmd (optional), and init() function
 ```
 
 ### Next Steps When You Return:
 
-#### 1. Fix the typo in Load() (line 37)
-Change `"http://localhost8080"` to `"http://localhost:8080"`
+#### 1. Complete `cmd/config.go`
 
-#### 2. Implement the `Save()` function
-This function will:
-- Get the config file path
-- Create the `.naturedopes-cli` directory if it doesn't exist
-- Convert Config struct to pretty JSON
-- Write the JSON to the file
-
-**New concepts you'll need:**
+Add the `getCmd` command:
 ```go
-// Create directory (and parents) if needed
-os.MkdirAll(dirPath, 0755)
+var getCmd = &cobra.Command{
+	Use:   "get <key>",
+	Short: "Get a configuration value",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		key := args[0]
 
-// Get directory from full path
-filepath.Dir("/home/user/.naturedopes-cli/config.json")
-// Returns: "/home/user/.naturedopes-cli"
+		value, err := config.Get(key)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
 
-// Convert struct to pretty JSON
-data, err := json.MarshalIndent(cfg, "", "  ")
-//                                    ^^  ^^^^
-//                                    |   2-space indent
-//                                    no prefix
-
-// Write file with permissions
-os.WriteFile(path, data, 0644)
-//                       ^^^^
-//                       rw-r--r-- permissions
+		fmt.Printf("%s: %s\n", key, value)
+	},
+}
 ```
 
-#### 3. Implement helper functions
-- `Set(key, value string) error` - Update a config value and save
-- `Get(key string) (string, error)` - Get a config value
-- `Clear() error` - Delete the config file
+Add a `listCmd` command (optional):
+```go
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all configuration values",
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, err := config.Load()
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
 
-#### 4. Create `cmd/config.go`
-This will create the CLI commands:
-- `naturedopes-cli config set api-url <url>`
-- `naturedopes-cli config get api-key`
-- `naturedopes-cli config list`
-- `naturedopes-cli config clear`
+		fmt.Printf("api-url: %s\n", cfg.ApiURL)
+		fmt.Printf("api-key: %s\n", cfg.ApiKey)
+	},
+}
+```
+
+Add the `init()` function to wire everything together:
+```go
+func init() {
+	rootCmd.AddCommand(configCmd)
+	configCmd.AddCommand(setCmd)
+	configCmd.AddCommand(getCmd)
+	configCmd.AddCommand(listCmd)  // Optional
+}
+```
+
+#### 2. Test your commands!
+
+```bash
+# Set values
+go run main.go config set api-url https://api.example.com
+go run main.go config set api-key abc123
+
+# Get values
+go run main.go config get api-url
+go run main.go config get api-key
+
+# List all
+go run main.go config list
+
+# Check the config file was created
+ls -la ~/.naturedopes-cli/
+cat ~/.naturedopes-cli/config.json
+```
 
 ---
 
-## 🔜 Next Session: Phase 2 - Configuration Management (Continued)
+## 🔜 Next Session: Phase 3 - API Client Foundation
 
 ### What You'll Build Next:
-A config system so users don't have to type `--api-url` and `--api-key` every time!
-
-### Commands You'll Create:
-```bash
-# Set configuration values
-naturedopes-cli config set api-url https://naturedopesapi-production.up.railway.app
-naturedopes-cli config set api-key 69e9b39d...
-
-# Get configuration values
-naturedopes-cli config get api-url
-naturedopes-cli config get api-key
-
-# List all config
-naturedopes-cli config list
-
-# Clear config
-naturedopes-cli config clear
-```
+An HTTP client to communicate with the Nature Dopes API!
 
 ### Files You'll Create:
-1. `pkg/config/config.go` - Configuration management package
-2. `cmd/config.go` - Config command handlers
+1. `pkg/models/types.go` - Data structures for Image and ApiKey
+2. `pkg/api/client.go` - HTTP client wrapper
 
 ### What You'll Learn:
-- Go structs and JSON tags
-- File I/O (`os.ReadFile`, `os.WriteFile`)
-- JSON marshaling/unmarshaling
-- User home directory handling
-- Error wrapping
-- Subcommands in Cobra
-- Cross-platform path handling
+- Go structs and JSON tags for API responses
+- HTTP client usage (`net/http` package)
+- Making GET/POST/DELETE requests
+- Request/response handling
+- Type definitions and pointer semantics
+- Authentication headers
 
-### How It Will Work:
-```
-User runs: naturedopes-cli config set api-key abc123
-    ↓
-Save to: ~/.naturedopes-cli/config.json
-    ↓
-{
-  "api_url": "http://localhost:8080",
-  "api_key": "abc123"
+### Data Models You'll Define:
+```go
+type Image struct {
+    ID         int     `json:"id"`
+    SpeciesName string `json:"species_name"`
+    GpsLong    float64 `json:"gps_long"`
+    GpsLat     float64 `json:"gps_lat"`
+    ImagePath  string  `json:"image_path"`
+    UserID     int     `json:"user_id"`
 }
-    ↓
-Future commands automatically load this config!
+
+type ApiKey struct {
+    ID        int     `json:"id"`
+    Key       string  `json:"key"`
+    Name      string  `json:"name"`
+    CreatedAt string  `json:"created_at"`
+}
 ```
 
 ---
@@ -359,7 +611,7 @@ Future commands automatically load this config!
 
 ```
 Phase 1: Foundation              ████████████████████ 100% ✅
-Phase 2: Configuration           ████████░░░░░░░░░░░░  40% 🚧
+Phase 2: Configuration           ████████████████████ 100% ✅
 Phase 3: API Client              ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 4: Images Commands         ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 5: Search Functionality    ░░░░░░░░░░░░░░░░░░░░   0%
@@ -367,7 +619,7 @@ Phase 6: API Keys Commands       ░░░░░░░░░░░░░░░�
 Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ███░░░░░░░░░░░░░░░ 17.5% Complete
+Total Project: █████░░░░░░░░░░░░░ 25% Complete
 ```
 
 ---
@@ -376,16 +628,16 @@ Total Project: ███░░░░░░░░░░░░░░░ 17.5% Comp
 
 When you're ready to continue:
 
-1. **Review**: Read BUILD_GUIDE.md Phase 2 section
-2. **Say**: "I'm ready for Phase 2" or "Let's do configuration"
-3. **We'll build**: The config system together
+1. **Review**: Read BUILD_GUIDE.md Phase 3 section
+2. **Say**: "I'm ready for Phase 3" or "Let's build the API client"
+3. **We'll build**: HTTP client to communicate with the Nature Dopes API
 
 ### Key Concepts Preview:
-- **Structs**: Data structures (like TypeScript interfaces)
-- **JSON tags**: How to map struct fields to JSON
-- **File paths**: `~/.naturedopes-cli/config.json`
-- **Marshaling**: Convert struct → JSON
-- **Unmarshaling**: Convert JSON → struct
+- **HTTP requests**: Using `net/http` package
+- **API models**: Structs for Image and ApiKey data
+- **JSON unmarshaling**: Convert API responses to Go structs
+- **Authentication**: Adding API key headers to requests
+- **Error handling**: Handling HTTP errors gracefully
 
 ---
 
@@ -481,8 +733,12 @@ go help <command>
 - ✅ Created your first Go CLI project
 - ✅ Used Cobra framework
 - ✅ Implemented command-line flags
-- ✅ Understood `init()` function
-- ✅ Learned about pointers
+- ✅ Built complete configuration system
+- ✅ Mastered pointers (`*` and `&`)
+- ✅ Used reflection to inspect structs
+- ✅ Extracted JSON tags dynamically
+- ✅ Implemented subcommands with Cobra
+- ✅ Understood multiple `init()` functions
 - ✅ Built working help system
 
 ---
@@ -492,9 +748,10 @@ go help <command>
 - [Cobra Documentation](https://cobra.dev/)
 - [Go Tour](https://go.dev/tour/)
 - [Go by Example](https://gobyexample.com/)
+- [Go Reflection](https://go.dev/blog/laws-of-reflection)
 
 ---
 
-**Great work today! See you in Phase 2! 🚀**
+**Great work! Phase 2 Complete! See you in Phase 3! 🚀**
 
-When you're ready to continue, just say: "Ready for Phase 2" or "Let's code configuration"
+When you're ready to continue, just say: "Ready for Phase 3" or "Let's build the API client"
