@@ -1,8 +1,8 @@
 # Nature Dopes CLI - Progress Tracker
 
-**Last Updated**: 2025-11-17
-**Current Phase**: Phase 2 - Configuration Management (COMPLETED)
-**Next Phase**: Phase 3 - API Client Foundation
+**Last Updated**: 2025-11-20
+**Current Phase**: Phase 3 - API Client Foundation (COMPLETED)
+**Next Phase**: Phase 4 - Images Commands
 
 ---
 
@@ -569,41 +569,203 @@ cat ~/.naturedopes-cli/config.json
 
 ---
 
-## 🔜 Next Session: Phase 3 - API Client Foundation
+## ✅ Phase 3: API Client Foundation - COMPLETED
 
-### What You'll Build Next:
-An HTTP client to communicate with the Nature Dopes API!
+### What You Built:
+1. ✅ Created `pkg/models/types.go` - Data structures for API responses
+2. ✅ Created `pkg/api/client.go` - HTTP client wrapper
+3. ✅ Implemented `doRequest()` method for making HTTP requests
+4. ✅ Added API key authentication header support
 
-### Files You'll Create:
-1. `pkg/models/types.go` - Data structures for Image and ApiKey
-2. `pkg/api/client.go` - HTTP client wrapper
+### Files Created:
+```
+naturedopes-cli/
+└── pkg/
+    ├── models/
+    │   └── types.go        ✅  (Image and ApiKey structs)
+    └── api/
+        └── client.go       ✅  (Client struct and doRequest method)
+```
 
-### What You'll Learn:
-- Go structs and JSON tags for API responses
-- HTTP client usage (`net/http` package)
-- Making GET/POST/DELETE requests
-- Request/response handling
-- Type definitions and pointer semantics
-- Authentication headers
+### What You Learned:
 
-### Data Models You'll Define:
+#### 1. **Data Models with JSON Tags**
 ```go
 type Image struct {
-    ID         int     `json:"id"`
-    SpeciesName string `json:"species_name"`
-    GpsLong    float64 `json:"gps_long"`
-    GpsLat     float64 `json:"gps_lat"`
-    ImagePath  string  `json:"image_path"`
-    UserID     int     `json:"user_id"`
+    ID          int     `json:"id"`
+    SpeciesName string  `json:"species_name"`
+    GpsLong     float64 `json:"gps_long"`
+    GpsLat      float64 `json:"gps_lat"`
+    ImagePath   string  `json:"image_path"`
+    UserID      int     `json:"user_id"`
+}
+```
+- JSON tags map Go fields to JSON keys from API
+- Use backticks for struct tags
+
+#### 2. **Pointers for Nullable Fields**
+```go
+LastUsed *string `json:"last_used"`  // Can be nil (like null in DB)
+```
+- `*string` = pointer to string (optional field)
+- `nil` in Go = `null` in JSON/databases
+- Same concept as `String?` in Prisma
+
+#### 3. **Constructor Pattern**
+```go
+func NewClient(baseURL, apiKey string) *Client {
+    return &Client{
+        BaseUrl:    baseURL,
+        APIKey:     apiKey,
+        HTTPClient: &http.Client{},
+    }
+}
+```
+- Functions that create and return instances
+- Returns pointer so struct can be modified
+- Common Go pattern for initialization
+
+#### 4. **HTTP Client Usage (`net/http`)**
+```go
+req, err := http.NewRequest(method, url, nil)
+resp, err := c.HTTPClient.Do(req)
+```
+- Create requests with `http.NewRequest()`
+- Send requests with `HTTPClient.Do()`
+- Third parameter (`nil`) is request body (for POST/PUT)
+
+#### 5. **Setting HTTP Headers**
+```go
+req.Header.Set("X-API-Key", c.APIKey)
+```
+- Add authentication headers to requests
+- Common pattern for API authentication
+
+#### 6. **`defer` for Cleanup**
+```go
+defer resp.Body.Close()
+```
+- `defer` runs at end of function
+- Always close response bodies to prevent memory leaks
+- Cleanup pattern in Go
+
+#### 7. **Reading Response Bodies**
+```go
+body, err := io.ReadAll(resp.Body)
+```
+- Reads all bytes from HTTP response
+- Returns `[]byte` (byte slice)
+- Can be converted to string or unmarshaled to struct
+
+#### 8. **HTTP Status Code Handling**
+```go
+if resp.StatusCode >= 400 {
+    return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(body))
+}
+```
+- Check status codes: 200-299 = success, 400+ = error
+- Return descriptive errors with status and message
+
+#### 9. **Format Specifiers in Error Messages**
+```go
+%w  // Wrap an error (type: error)
+%d  // Integer/number (type: int)
+%s  // String (type: string)
+%v  // Any value (generic)
+```
+- Use correct specifier for each type
+- `%w` only for wrapping existing errors
+
+### Code You Wrote:
+
+**pkg/models/types.go**:
+```go
+package models
+
+type Image struct {
+	ID          int     `json:"id"`
+	SpeciesName string  `json:"species_name"`
+	GpsLong     float64 `json:"gps_long"`
+	GpsLat      float64 `json:"gps_lat"`
+	ImagePath   string  `json:"image_path"`
+	UserID      int     `json:"user_id"`
 }
 
 type ApiKey struct {
-    ID        int     `json:"id"`
-    Key       string  `json:"key"`
-    Name      string  `json:"name"`
-    CreatedAt string  `json:"created_at"`
+	ID        int     `json:"id"`
+	Key       string  `json:"key"`
+	Name      string  `json:"name"`
+	CreatedAt string  `json:"created_at"`
+	ExpiresAt string  `json:"expires_at"`
+	LastUsed  *string `json:"last_used"`
+	Revoked   bool    `json:"revoked"`
 }
 ```
+
+**pkg/api/client.go**:
+```go
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+type Client struct {
+	BaseUrl    string
+	APIKey     string
+	HTTPClient *http.Client
+}
+
+func NewClient(BaseUrl string, APIKey string) *Client {
+	return &Client{
+		BaseUrl:    BaseUrl,
+		APIKey:     APIKey,
+		HTTPClient: &http.Client{},
+	}
+}
+
+func (c *Client) doRequest(method string, path string) ([]byte, error) {
+	url := c.BaseUrl + path
+
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("Could not create http request err: %w", err)
+	}
+
+	if c.APIKey != "" {
+		req.Header.Set("X-API-Key", c.APIKey)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("Could not send request err: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response, err: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Returned status code: %d , message: %s ", resp.StatusCode, string(body))
+	}
+
+	return body, nil
+}
+```
+
+### Key Achievements:
+- ✅ Created reusable HTTP client structure
+- ✅ Understood pointer semantics for nullable values
+- ✅ Learned HTTP request/response handling
+- ✅ Implemented authentication with headers
+- ✅ Added proper error handling and cleanup
+- ✅ Made connection between Go pointers and database nulls (Prisma concept)
 
 ---
 
@@ -612,14 +774,14 @@ type ApiKey struct {
 ```
 Phase 1: Foundation              ████████████████████ 100% ✅
 Phase 2: Configuration           ████████████████████ 100% ✅
-Phase 3: API Client              ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 3: API Client              ████████████████████ 100% ✅
 Phase 4: Images Commands         ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 5: Search Functionality    ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 6: API Keys Commands       ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: █████░░░░░░░░░░░░░ 25% Complete
+Total Project: ███████░░░░░░░░░░░ 37.5% Complete
 ```
 
 ---
@@ -628,16 +790,19 @@ Total Project: █████░░░░░░░░░░░░░ 25% Comple
 
 When you're ready to continue:
 
-1. **Review**: Read BUILD_GUIDE.md Phase 3 section
-2. **Say**: "I'm ready for Phase 3" or "Let's build the API client"
-3. **We'll build**: HTTP client to communicate with the Nature Dopes API
+1. **Review**: Read BUILD_GUIDE.md Phase 4 section
+2. **Say**: "I'm ready for Phase 4" or "Let's build the images commands"
+3. **We'll build**: Image listing and retrieval commands
+
+### What You'll Build Next (Phase 4):
+- `pkg/api/images.go` - Image API methods (ListImages, GetImage)
+- `cmd/images.go` - Image commands (list, get)
 
 ### Key Concepts Preview:
-- **HTTP requests**: Using `net/http` package
-- **API models**: Structs for Image and ApiKey data
-- **JSON unmarshaling**: Convert API responses to Go structs
-- **Authentication**: Adding API key headers to requests
-- **Error handling**: Handling HTTP errors gracefully
+- **JSON unmarshaling**: Convert API response bytes to Go structs
+- **Command flags**: Optional parameters like `--limit`
+- **Table formatting**: Pretty output for lists
+- **Using the HTTP client**: Call doRequest() and handle responses
 
 ---
 
