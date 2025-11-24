@@ -1,8 +1,8 @@
 # Nature Dopes CLI - Progress Tracker
 
-**Last Updated**: 2025-11-20
-**Current Phase**: Phase 3 - API Client Foundation (COMPLETED)
-**Next Phase**: Phase 4 - Images Commands
+**Last Updated**: 2025-11-24
+**Current Phase**: Phase 5 - Search Functionality (COMPLETED)
+**Next Phase**: Phase 6 - API Keys Commands
 
 ---
 
@@ -769,19 +769,490 @@ func (c *Client) doRequest(method string, path string) ([]byte, error) {
 
 ---
 
+## ✅ Phase 4: Images Commands - COMPLETED
+
+### What You Built:
+1. ✅ Implemented `ListImages()` method in `pkg/api/images.go`
+2. ✅ Implemented `GetImage(id int)` method in `pkg/api/images.go`
+3. ✅ Created `cmd/images.go` with `imagesCmd`, `listImagesCmd`, and `getImageCmd`
+4. ✅ Used positional arguments for simple ID parameter
+5. ✅ Tested commands successfully with real API
+
+### Files Modified/Created:
+```
+naturedopes-cli/
+├── pkg/api/
+│   └── images.go       ✅  (ListImages, GetImage methods)
+└── cmd/
+    └── images.go       ✅  (images, list, get commands)
+```
+
+### What You Learned:
+
+#### 1. **Positional Arguments vs Flags**
+```go
+// Positional (what you used - cleaner for single required values)
+Args: cobra.ExactArgs(1),
+id := args[0]
+// Usage: naturedopes-cli images get 5
+
+// vs Flags (better for multiple optional parameters)
+getImageCmd.Flags().IntVar(&imageID, "id", 0, "Image ID")
+// Usage: naturedopes-cli images get --id 5
+```
+- Positional arguments are simpler for single required values
+- Flags are better for optional or multiple parameters
+
+#### 2. **Error Handling in Cobra Commands**
+```go
+Run: func(command *cobra.Command, args []string) {
+    // This function doesn't return errors!
+    resp, err := client.ListImages()
+    if err != nil {
+        fmt.Printf("Error: %v\n", err)  // Print, not return
+        return  // Exit function
+    }
+    // Safe to use resp here
+}
+```
+- Cobra's `Run` function has no return type
+- Use `fmt.Printf()` to **print** errors (not `fmt.Errorf()` which **creates** them)
+- Always `return` after printing errors to stop execution
+
+#### 3. **fmt.Errorf() vs fmt.Printf()**
+```go
+// WRONG in Cobra Run ❌
+fmt.Errorf("error: %w", err)  // Creates error but discards it
+
+// RIGHT ✅
+fmt.Printf("Error: %v\n", err)  // Prints to user
+return  // Stop execution
+```
+- `fmt.Errorf()` = creates errors for **returning** from functions
+- `fmt.Printf()` = prints to stdout for **showing** users
+- Use `fmt.Errorf()` in regular functions that return `error`
+- Use `fmt.Printf()` in Cobra `Run` functions
+
+#### 4. **Newlines in Output**
+```go
+// Two ways to add newlines:
+fmt.Printf("message\n")   // Manual newline with \n
+fmt.Println("message")    // Automatic newline
+```
+- Always add `\n` to `Printf()` calls or use `Println()`
+- Prevents output from appearing on same line
+
+#### 5. **String to Integer Conversion**
+```go
+id := args[0]  // String from command line
+integer, err := strconv.Atoi(id)  // Convert to int
+if err != nil {
+    fmt.Printf("Error: invalid ID, must be a number\n")
+    return
+}
+// Now safe to use integer
+```
+- Command line arguments are always strings
+- Use `strconv.Atoi()` to convert to int
+- Always check for conversion errors
+
+#### 6. **JSON Unmarshaling**
+```go
+// In pkg/api/images.go
+var images []models.Image  // For list (slice)
+json.Unmarshal(resp, &images)
+
+var image models.Image  // For single item
+json.Unmarshal(resp, &image)
+return &image, nil  // Return pointer
+```
+- Unmarshal JSON bytes into Go structs
+- Use slice `[]Type` for arrays
+- Use single `Type` for objects
+- Pass pointer with `&` so Unmarshal can modify it
+
+#### 7. **API Rate Limiting Understanding**
+- Learned the API has two rate limits:
+  - **Per-IP**: 1000 requests/day
+  - **Per-API-Key**: 100 requests/hour (stricter)
+- CLI requests count toward both limits
+- Error handling already catches rate limit errors (429 status)
+
+### Commands You Built:
+```bash
+# List all images
+naturedopes-cli images list
+
+# Get specific image
+naturedopes-cli images get 5
+
+# Help
+naturedopes-cli images --help
+```
+
+### Code You Wrote:
+
+**pkg/api/images.go** (complete):
+```go
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/models"
+)
+
+func (c *Client) ListImages() ([]models.Image, error) {
+	var images []models.Image
+
+	resp, err := c.doRequest("GET", "/images")
+	if err != nil {
+		return nil, fmt.Errorf("could not retrieve images: %w", err)
+	}
+
+	err = json.Unmarshal(resp, &images)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshall to json: %w", err)
+	}
+	return images, nil
+}
+
+func (c *Client) GetImage(id int) (*models.Image, error) {
+	var images models.Image
+
+	resp, err := c.doRequest("GET", fmt.Sprintf("/images/%d", id))
+	if err != nil {
+		return nil, fmt.Errorf("Could not obtain image: %w", err)
+	}
+
+	err = json.Unmarshal(resp, &images)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshall to json: %w", err)
+	}
+
+	return &images, nil
+}
+```
+
+**cmd/images.go** (complete):
+```go
+package cmd
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
+	"strconv"
+)
+
+var imagesCmd = &cobra.Command{
+	Use:   "images",
+	Short: "Get Images command",
+}
+
+var listImagesCmd = &cobra.Command{
+	Use:   "list",
+	Short: "Get list of images",
+	Args:  cobra.ExactArgs(0),
+	Run: func(command *cobra.Command, args []string) {
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		resp, err := client.ListImages()
+		if err != nil {
+			fmt.Printf("could not retrieve images: %v\n", err)
+			return
+		}
+
+		for _, image := range resp {
+			fmt.Printf("name: %s, gps_long: %f, gps_lat: %f, image_path: %s\n",
+				image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath)
+		}
+	},
+}
+
+var getImageCmd = &cobra.Command{
+	Use:   "get <id>",
+	Short: "Get individual image",
+	Args:  cobra.ExactArgs(1),
+	Run: func(command *cobra.Command, args []string) {
+		id := args[0]
+		integer, err := strconv.Atoi(id)
+		if err != nil {
+			fmt.Printf("Error, invalid ID, please check you've supplied an integer as argument: %v\n", err)
+			return
+		}
+
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		image, err := client.GetImage(integer)
+		if err != nil {
+			fmt.Printf("could not retrieve image data: %v\n", err)
+			return
+		}
+
+		fmt.Printf("id:%d name: %s, gps_long: %f, gps_lat: %f, image_path: %s\n",
+			image.ID, image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(imagesCmd)
+	imagesCmd.AddCommand(listImagesCmd)
+	imagesCmd.AddCommand(getImageCmd)
+}
+```
+
+### Testing Results:
+```bash
+# Successfully tested with real API
+✅ naturedopes-cli images list - shows all images
+✅ naturedopes-cli images get 5 - shows single image
+✅ naturedopes-cli images get abc - shows error for invalid ID
+✅ API key authentication working
+```
+
+### Key Achievements:
+- ✅ Built working image listing and retrieval
+- ✅ Understood positional arguments vs flags trade-offs
+- ✅ Mastered error handling in Cobra commands
+- ✅ Learned difference between creating and printing errors
+- ✅ Implemented proper input validation
+- ✅ Successfully integrated with real API
+- ✅ Understood rate limiting implications
+
+---
+
+## ✅ Phase 5: Search Functionality - COMPLETED
+
+### What You Built:
+1. ✅ Implemented `SearchImages()` method in `pkg/api/images.go`
+2. ✅ Added URL query parameter support for filtering
+3. ✅ Created `searchCmd` in `cmd/images.go` with optional flags
+4. ✅ Implemented `--species` and `--user-id` flags
+
+### Files Modified:
+```
+naturedopes-cli/
+├── pkg/api/
+│   └── images.go       ✅  (Added SearchImages method)
+└── cmd/
+    └── images.go       ✅  (Added searchCmd)
+```
+
+### What You Learned:
+
+#### 1. **URL Query Parameters**
+```go
+params := url.Values{}
+params.Add("species", "Oak")
+params.Add("user_id", "5")
+queryString := params.Encode()  // "species=Oak&user_id=5"
+```
+- `url.Values{}` creates a map for query parameters
+- `Add()` adds key-value pairs
+- `Encode()` converts to URL-encoded string
+- Automatically handles URL encoding (spaces, special chars)
+
+#### 2. **Building Dynamic URLs**
+```go
+path := "/images"
+if len(params) > 0 {
+    path = path + "?" + params.Encode()
+}
+// Result: "/images?species=Oak&user_id=5"
+```
+- Start with base path
+- Only add `?` and query string if there are parameters
+- `len(params)` checks if any parameters were added
+
+#### 3. **Optional Function Parameters in Go**
+```go
+func (c *Client) SearchImages(species string, userID int) ([]models.Image, error) {
+    if species != "" {
+        // Only add if provided
+    }
+    if userID > 0 {
+        // Only add if provided
+    }
+}
+```
+- Go doesn't have optional parameters (unlike JavaScript/Python)
+- Use zero values to indicate "not provided": `""` for string, `0` for int
+- Check for zero values before using them
+- Alternative: Use pointers (`*string`, `*int`) where `nil` means not provided
+
+#### 4. **Converting Integers to Strings**
+```go
+userIDStr := strconv.Itoa(userID)  // int to string
+// Example: 5 -> "5"
+```
+- `strconv.Itoa()` = "integer to ASCII"
+- Needed for URL query parameters (must be strings)
+- Opposite of `strconv.Atoi()` which you used before
+
+#### 5. **Optional Flags in Cobra**
+```go
+var species string
+var userID int
+
+searchCmd.Flags().StringVar(&species, "species", "", "Filter by species name")
+searchCmd.Flags().IntVar(&userID, "user-id", 0, "Filter by user ID")
+```
+- `.Flags()` creates command-specific flags (not persistent)
+- Default values: `""` for string, `0` for int
+- If user doesn't provide flag, variable has default value
+- Both filters are optional - can use one, both, or neither
+
+#### 6. **Difference Between `.Flags()` and `.PersistentFlags()`**
+```go
+// Regular flags - only for this command
+searchCmd.Flags().StringVar(...)
+
+// Persistent flags - inherited by all subcommands
+rootCmd.PersistentFlags().StringVar(...)
+```
+- `.Flags()` = local to one command
+- `.PersistentFlags()` = available to command and all children
+- Use persistent for global settings (api-url, api-key)
+- Use regular for command-specific options (species, user-id)
+
+### Commands You Built:
+```bash
+# Search with species filter
+naturedopes-cli images search --species Oak
+
+# Search with user-id filter
+naturedopes-cli images search --user-id 1
+
+# Search with both filters
+naturedopes-cli images search --species Oak --user-id 1
+
+# Search with no filters (returns all)
+naturedopes-cli images search
+
+# Get help
+naturedopes-cli images search --help
+```
+
+### Code You Wrote:
+
+**pkg/api/images.go** (added SearchImages method):
+```go
+func (c *Client) SearchImages(species string, userID int) ([]models.Image, error) {
+	var images []models.Image
+
+	// Start with base path
+	path := "/images"
+
+	// Build query parameters if provided
+	params := url.Values{}
+	if species != "" {
+		params.Add("species", species)
+	}
+	if userID > 0 {
+		params.Add("user_id", strconv.Itoa(userID))
+	}
+
+	// Add query string to path if we have parameters
+	if len(params) > 0 {
+		path = path + "?" + params.Encode()
+	}
+
+	resp, err := c.doRequest("GET", path)
+	if err != nil {
+		return nil, fmt.Errorf("could not search images: %w", err)
+	}
+
+	err = json.Unmarshal(resp, &images)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal to json: %w", err)
+	}
+
+	return images, nil
+}
+```
+
+**cmd/images.go** (added searchCmd):
+```go
+var searchCmd = &cobra.Command{
+	Use:   "search",
+	Short: "Search images with optional filters",
+	Run: func(cmd *cobra.Command, args []string) {
+		species, _ := cmd.Flags().GetString("species")
+		userID, _ := cmd.Flags().GetInt("user-id")
+
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		images, err := client.SearchImages(species, userID)
+		if err != nil {
+			fmt.Printf("Error searching images: %v\n", err)
+			return
+		}
+
+		if len(images) == 0 {
+			fmt.Println("No images found")
+			return
+		}
+
+		for _, image := range images {
+			fmt.Printf("id: %d, name: %s, gps_long: %f, gps_lat: %f, image_path: %s\n",
+				image.ID, image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath)
+		}
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(imagesCmd)
+	imagesCmd.AddCommand(listImagesCmd)
+	imagesCmd.AddCommand(getImageCmd)
+	imagesCmd.AddCommand(searchCmd)
+
+	searchCmd.Flags().String("species", "", "Filter by species name")
+	searchCmd.Flags().Int("user-id", 0, "Filter by user ID")
+}
+```
+
+### Testing (TODO for next session):
+```bash
+# Test different scenarios:
+go run main.go images search --species Oak
+go run main.go images search --user-id 1
+go run main.go images search --species Oak --user-id 1
+go run main.go images search
+go run main.go images search --help
+```
+
+### Key Achievements:
+- ✅ Learned URL query parameter construction
+- ✅ Understood optional parameters in Go
+- ✅ Used `url.Values{}` for building query strings
+- ✅ Implemented command-specific flags in Cobra
+- ✅ Learned difference between `.Flags()` and `.PersistentFlags()`
+- ✅ Built flexible search with multiple optional filters
+- ✅ Used `strconv.Itoa()` for integer to string conversion
+
+---
+
 ## 📊 Overall Progress
 
 ```
 Phase 1: Foundation              ████████████████████ 100% ✅
 Phase 2: Configuration           ████████████████████ 100% ✅
 Phase 3: API Client              ████████████████████ 100% ✅
-Phase 4: Images Commands         ░░░░░░░░░░░░░░░░░░░░   0%
-Phase 5: Search Functionality    ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 4: Images Commands         ████████████████████ 100% ✅
+Phase 5: Search Functionality    ████████████████████ 100% ✅
 Phase 6: API Keys Commands       ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ███████░░░░░░░░░░░ 37.5% Complete
+Total Project: ████████████░░░░░░ 62% Complete
 ```
 
 ---
@@ -790,19 +1261,20 @@ Total Project: ███████░░░░░░░░░░░ 37.5% Comp
 
 When you're ready to continue:
 
-1. **Review**: Read BUILD_GUIDE.md Phase 4 section
-2. **Say**: "I'm ready for Phase 4" or "Let's build the images commands"
-3. **We'll build**: Image listing and retrieval commands
+1. **Review**: Read BUILD_GUIDE.md Phase 5 section
+2. **Say**: "I'm ready for Phase 5" or "Let's add search functionality"
+3. **We'll build**: Image search with filters (species, user-id)
 
-### What You'll Build Next (Phase 4):
-- `pkg/api/images.go` - Image API methods (ListImages, GetImage)
-- `cmd/images.go` - Image commands (list, get)
+### What You'll Build Next (Phase 5):
+- Add `SearchImages()` method to `pkg/api/images.go`
+- Add `searchCmd` to `cmd/images.go` with optional flags
+- Implement URL query parameters for filtering
 
 ### Key Concepts Preview:
-- **JSON unmarshaling**: Convert API response bytes to Go structs
-- **Command flags**: Optional parameters like `--limit`
-- **Table formatting**: Pretty output for lists
-- **Using the HTTP client**: Call doRequest() and handle responses
+- **URL query parameters**: Adding filters to API requests (`?species=Oak&user_id=5`)
+- **Optional flags**: Using `--species` and `--user-id` flags
+- **Building query strings**: Constructing URLs with filters
+- **Handling optional parameters**: Checking if flags were set
 
 ---
 

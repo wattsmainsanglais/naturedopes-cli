@@ -57,7 +57,38 @@ var getImageCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("id:%d name: %s, gps_long: %f, gps_lat: %f, image_path: %s\n", image.ID, image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath)
+		fmt.Printf("id:%d name: %s, gps_long: %f, gps_lat: %f, image_path: %s, user_id: %d\n", image.ID, image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath, image.UserID)
+
+	},
+}
+
+var searchImagesCmd = &cobra.Command{
+	Use:   "search <species> <id>",
+	Short: "Enter the name of the species that you'd like to search for, you can optionally add the user Id as a filter, enter 0 for this argumnet if you don't ",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		name := args[0]
+		id := args[1]
+
+		idInt, err := strconv.Atoi(id)
+		if err != nil {
+			fmt.Printf("could not convert to integer: %s\n ", err)
+			return
+		}
+
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		images, err := client.SearchImages(name, idInt)
+		if err != nil {
+			fmt.Printf("could not return images: %s\n", err)
+			return
+		}
+
+		for _, i := range images {
+			fmt.Printf("id:%d name: %s, gps_long: %f, gps_lat: %f, image_path: %s user_id: %d\n", i.ID, i.SpeciesName, i.GpsLong, i.GpsLat, i.ImagePath, i.UserID)
+		}
 
 	},
 }
@@ -66,5 +97,6 @@ func init() {
 	rootCmd.AddCommand(imagesCmd)
 	imagesCmd.AddCommand(listImagesCmd)
 	imagesCmd.AddCommand(getImageCmd)
+	imagesCmd.AddCommand(searchImagesCmd)
 
 }

@@ -26,7 +26,7 @@ func (c *Client) doRequest(method string, path string) ([]byte, error) {
 
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Could not create http request err: %w", err)
+		return nil, fmt.Errorf("could not create http request err: %w", err)
 	}
 
 	if c.APIKey != "" {
@@ -35,7 +35,7 @@ func (c *Client) doRequest(method string, path string) ([]byte, error) {
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Could not send request err: %w", err)
+		return nil, fmt.Errorf("could not send request err: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -46,7 +46,7 @@ func (c *Client) doRequest(method string, path string) ([]byte, error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("Returned status code: %d , message: %s ", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("returned status code: %d , message: %s ", resp.StatusCode, string(body))
 	}
 
 	return body, nil
