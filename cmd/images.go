@@ -63,7 +63,7 @@ var getImageCmd = &cobra.Command{
 }
 
 var searchImagesCmd = &cobra.Command{
-	Use:   "search <species> <id>",
+	Use:   "search <species_name> <id>",
 	Short: "Enter the name of the species that you'd like to search for, you can optionally add the user Id as a filter, enter 0 for this argumnet if you don't ",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -87,7 +87,7 @@ var searchImagesCmd = &cobra.Command{
 		}
 
 		for _, i := range images {
-			fmt.Printf("id:%d name: %s, gps_long: %f, gps_lat: %f, image_path: %s user_id: %d\n", i.ID, i.SpeciesName, i.GpsLong, i.GpsLat, i.ImagePath, i.UserID)
+			fmt.Printf("id:%d species_name: %s, gps_long: %f, gps_lat: %f, image_path: %s user_id: %d\n", i.ID, i.SpeciesName, i.GpsLong, i.GpsLat, i.ImagePath, i.UserID)
 		}
 
 	},

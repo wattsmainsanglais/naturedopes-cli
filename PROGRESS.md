@@ -1,8 +1,8 @@
 # Nature Dopes CLI - Progress Tracker
 
-**Last Updated**: 2025-11-24
-**Current Phase**: Phase 5 - Search Functionality (COMPLETED)
-**Next Phase**: Phase 6 - API Keys Commands
+**Last Updated**: 2025-11-27
+**Current Phase**: Phase 6 - API Keys Commands (IN PROGRESS)
+**Next Phase**: Phase 7 - Polish & Error Handling
 
 ---
 
@@ -1032,8 +1032,24 @@ func init() {
 ### What You Built:
 1. ✅ Implemented `SearchImages()` method in `pkg/api/images.go`
 2. ✅ Added URL query parameter support for filtering
-3. ✅ Created `searchCmd` in `cmd/images.go` with optional flags
-4. ✅ Implemented `--species` and `--user-id` flags
+3. ✅ Created `searchCmd` in `cmd/images.go` with positional arguments
+4. ✅ Tested and verified CLI correctly sends query parameters
+
+### ⚠️ API Limitation - TODO:
+**The CLI search functionality is complete**, but the `naturedopesApi` backend doesn't support query parameter filtering yet!
+
+**Current API behavior**: `GET /images?species_name=Globethistle` returns ALL images (ignores parameters)
+
+**What needs to be added to the API**:
+1. Modify `getImagesHandler` in `routes.go` to read query parameters (`r.URL.Query().Get()`)
+2. Update `GetImages()` in `endpoints/image.go` to accept `species_name` and `user_id` parameters
+3. Modify SQL query to use `WHERE` clauses for filtering
+
+**Files to modify in naturedopesApi**:
+- `/home/andrew/Code/2025/go/naturedopesApi/routes.go`
+- `/home/andrew/Code/2025/go/naturedopesApi/endpoints/image.go`
+
+**For now**: The CLI is ready and working correctly. API enhancement can be added later as a separate learning task.
 
 ### Files Modified:
 ```
@@ -1240,6 +1256,206 @@ go run main.go images search --help
 
 ---
 
+## 🚧 Phase 6: API Keys Commands - IN PROGRESS
+
+### What You've Built So Far:
+1. ✅ Modified `pkg/api/client.go` - Added request body support to `doRequest()`
+2. ✅ Created `pkg/api/keys.go` - Implemented all three API methods
+3. ⏳ TODO: Create `cmd/keys.go` - Build the CLI commands
+
+### Files Created/Modified:
+```
+naturedopes-cli/
+├── pkg/api/
+│   ├── client.go       ✅ Modified - Added body parameter to doRequest()
+│   └── keys.go         ✅ Created - GenerateKey, ListKeys, RevokeKey methods
+└── cmd/
+    └── keys.go         ⏳ TODO - Create CLI commands
+```
+
+### What You've Learned:
+
+#### 1. **POST Requests with JSON Body**
+```go
+// Create request body struct
+requestBody := struct {
+    Name string `json:"name"`
+}{
+    Name: name,
+}
+
+// Marshal to JSON
+jsonData, err := json.Marshal(requestBody)
+
+// Send in POST request
+resp, err := client.doRequest("POST", "/api/keys", jsonData)
+```
+- Anonymous structs for one-time request bodies
+- `json.Marshal()` converts Go struct → JSON bytes
+- Request body passed as `[]byte` parameter
+
+#### 2. **Modifying Existing Functions**
+```go
+// Before:
+func (c *Client) doRequest(method string, path string) ([]byte, error)
+
+// After:
+func (c *Client) doRequest(method string, path string, body []byte) ([]byte, error)
+```
+- Added optional body parameter for POST/PUT requests
+- Used `io.Reader` conversion: `bytes.NewBuffer(body)`
+- Set `Content-Type: application/json` header when body exists
+
+#### 3. **DELETE Requests**
+```go
+func (client *Client) RevokeKey(id int) error {
+    _, err := client.doRequest("DELETE", fmt.Sprintf("/api/keys/%d", id), nil)
+    return err
+}
+```
+- DELETE often returns no data (204 No Content)
+- Return only `error`, not data
+- Use `_` to discard unused response body
+
+#### 4. **Pointers vs Slices**
+```go
+// Single item - return pointer
+func GenerateKey(name string) (*models.ApiKey, error)  // Returns *ApiKey
+
+// Multiple items - return slice (NOT pointer to slice)
+func ListKeys() ([]models.ApiKey, error)  // Returns []ApiKey, not *[]
+```
+**Why?**
+- Structs are value types → use pointers to avoid copying
+- Slices are reference types → already contain pointer internally
+
+#### 5. **Separation of Concerns**
+- **API layer** (`pkg/api/`): HTTP requests, return data/errors only
+- **Command layer** (`cmd/`): User messages, formatting, interaction
+- Don't print user messages from API methods!
+
+### Code You Wrote:
+
+**pkg/api/client.go** (modified doRequest):
+```go
+func (c *Client) doRequest(method string, path string, body []byte) ([]byte, error) {
+    url := c.BaseUrl + path
+    var reqBody io.Reader = nil
+    if body != nil {
+        reqBody = bytes.NewBuffer(body)
+    }
+
+    req, err := http.NewRequest(method, url, reqBody)
+    if err != nil {
+        return nil, fmt.Errorf("could not create http request err: %w", err)
+    }
+
+    if body != nil {
+        req.Header.Set("Content-Type", "application/json")
+    }
+
+    if c.APIKey != "" {
+        req.Header.Set("X-API-Key", c.APIKey)
+    }
+
+    // ... rest of request handling
+}
+```
+
+**pkg/api/keys.go** (complete):
+```go
+func (client *Client) GenerateKey(name string) (*models.ApiKey, error) {
+    var apiKey models.ApiKey
+
+    requestBody := struct {
+        Name string `json:"name"`
+    }{
+        Name: name,
+    }
+
+    jsonData, err := json.Marshal(requestBody)
+    if err != nil {
+        return nil, fmt.Errorf("could not create jsonData: %w", err)
+    }
+
+    resp, err := client.doRequest("POST", "/api/keys", jsonData)
+    if err != nil {
+        return nil, fmt.Errorf("could not create api keys from naturedopesApi: %w", err)
+    }
+
+    err = json.Unmarshal(resp, &apiKey)
+    if err != nil {
+        return nil, fmt.Errorf("could not unmarshal response: %w", err)
+    }
+
+    return &apiKey, nil
+}
+
+func (client *Client) ListKeys() ([]models.ApiKey, error) {
+    var apiKeys []models.ApiKey
+
+    resp, err := client.doRequest("GET", "/api/keys", nil)
+    if err != nil {
+        return nil, fmt.Errorf("could not get apikeys: %w", err)
+    }
+
+    err = json.Unmarshal(resp, &apiKeys)
+    if err != nil {
+        return nil, fmt.Errorf("could not unmarshall json: %w", err)
+    }
+
+    return apiKeys, nil
+}
+
+func (client *Client) RevokeKey(id int) error {
+    _, err := client.doRequest("DELETE", fmt.Sprintf("/api/keys/%d", id), nil)
+    if err != nil {
+        return fmt.Errorf("could not delete api-key: %w", err)
+    }
+
+    return nil
+}
+```
+
+### Next Steps (After Lunch!):
+
+**Create `cmd/keys.go`** with three commands:
+
+1. **`keysCmd`** - Parent command
+```go
+var keysCmd = &cobra.Command{
+    Use:   "keys",
+    Short: "Manage API keys",
+}
+```
+
+2. **`listKeysCmd`** - List all keys
+```bash
+naturedopes-cli keys list
+```
+
+3. **`createKeyCmd`** - Create new key with `--name` flag
+```bash
+naturedopes-cli keys create --name "My Research Key"
+```
+
+4. **`revokeKeyCmd`** - Delete key by ID (positional argument)
+```bash
+naturedopes-cli keys revoke 5
+```
+
+5. **`init()`** - Wire everything together
+
+### Key Achievements So Far:
+- ✅ Learned POST requests with JSON body
+- ✅ Modified existing function to support request bodies
+- ✅ Understood DELETE requests
+- ✅ Mastered pointer vs slice return types
+- ✅ Applied separation of concerns principle
+- ✅ Successfully built complete API client layer
+
+---
+
 ## 📊 Overall Progress
 
 ```
@@ -1248,11 +1464,11 @@ Phase 2: Configuration           ███████████████�
 Phase 3: API Client              ████████████████████ 100% ✅
 Phase 4: Images Commands         ████████████████████ 100% ✅
 Phase 5: Search Functionality    ████████████████████ 100% ✅
-Phase 6: API Keys Commands       ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 6: API Keys Commands       ██████████░░░░░░░░░░  50% 🚧
 Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ████████████░░░░░░ 62% Complete
+Total Project: █████████████░░░░░ 69% Complete
 ```
 
 ---
@@ -1261,20 +1477,29 @@ Total Project: ████████████░░░░░░ 62% Comple
 
 When you're ready to continue:
 
-1. **Review**: Read BUILD_GUIDE.md Phase 5 section
-2. **Say**: "I'm ready for Phase 5" or "Let's add search functionality"
-3. **We'll build**: Image search with filters (species, user-id)
+1. **Test Phase 5**: Run the test commands for search functionality
+2. **Say**: "I'm ready for Phase 6" or "Let's add API keys commands"
+3. **We'll build**: API key management (list, create, revoke)
 
-### What You'll Build Next (Phase 5):
-- Add `SearchImages()` method to `pkg/api/images.go`
-- Add `searchCmd` to `cmd/images.go` with optional flags
-- Implement URL query parameters for filtering
+### Testing Phase 5 First:
+```bash
+go run main.go images search --species Oak
+go run main.go images search --user-id 1
+go run main.go images search --species Oak --user-id 1
+go run main.go images search
+```
+
+### What You'll Build Next (Phase 6):
+- Add API key methods to `pkg/api/` (ListKeys, CreateKey, RevokeKey)
+- Create `cmd/keys.go` with key management commands
+- Handle POST requests with request bodies
+- Work with different HTTP methods (GET, POST, DELETE)
 
 ### Key Concepts Preview:
-- **URL query parameters**: Adding filters to API requests (`?species=Oak&user_id=5`)
-- **Optional flags**: Using `--species` and `--user-id` flags
-- **Building query strings**: Constructing URLs with filters
-- **Handling optional parameters**: Checking if flags were set
+- **POST requests with body**: Sending JSON data to create resources
+- **Request body marshaling**: Converting Go structs to JSON
+- **DELETE requests**: Revoking/deleting resources
+- **Working with the ApiKey model**: Using the struct you already created
 
 ---
 

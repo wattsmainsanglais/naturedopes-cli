@@ -12,7 +12,7 @@ func (c *Client) ListImages() ([]models.Image, error) {
 
 	var images []models.Image
 
-	resp, err := c.doRequest("GET", "/images")
+	resp, err := c.doRequest("GET", "/images", nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not retrieve images: %w", err)
 	}
@@ -29,7 +29,7 @@ func (c *Client) GetImage(id int) (*models.Image, error) {
 
 	var images models.Image
 
-	resp, err := c.doRequest("GET", fmt.Sprintf("/images/%d", id))
+	resp, err := c.doRequest("GET", fmt.Sprintf("/images/%d", id), nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not obtain image: %w", err)
 	}
@@ -49,7 +49,7 @@ func (c *Client) SearchImages(species string, userID int) ([]models.Image, error
 	path := "/images"
 	params := url.Values{}
 	if species != "" {
-		params.Add("species", species)
+		params.Add("species_name", species)
 	}
 	if userID > 0 {
 		params.Add("user_id", strconv.Itoa(userID))
@@ -59,7 +59,7 @@ func (c *Client) SearchImages(species string, userID int) ([]models.Image, error
 		path = path + "?" + params.Encode()
 	}
 
-	resp, err := c.doRequest("GET", path)
+	resp, err := c.doRequest("GET", path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("could  not search images: %w", err)
 	}

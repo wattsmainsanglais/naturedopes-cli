@@ -33,9 +33,14 @@ func Load() (*Config, error) {
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
+		apiUrl := os.Getenv("API_URL")
+		if apiUrl == "" {
+			apiUrl = "http://localhost:8080"
+		}
+
 		return &Config{
-			ApiURL: "http://localhost:8080",
-			ApiKey: "",
+			ApiURL: apiUrl,
+			ApiKey: os.Getenv("API_KEY"),
 		}, nil
 	}
 

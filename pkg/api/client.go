@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,13 +21,21 @@ func NewClient(BaseUrl string, APIKey string) *Client {
 	}
 }
 
-func (c *Client) doRequest(method string, path string) ([]byte, error) {
+func (c *Client) doRequest(method string, path string, body []byte) ([]byte, error) {
 
 	url := c.BaseUrl + path
+	var reqBody io.Reader = nil
+	if body != nil {
+		reqBody = bytes.NewBuffer(body)
+	}
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, url, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("could not create http request err: %w", err)
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 
 	if c.APIKey != "" {
@@ -40,15 +49,15 @@ func (c *Client) doRequest(method string, path string) ([]byte, error) {
 
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response, err: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("returned status code: %d , message: %s ", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("returned status code: %d , message: %s ", resp.StatusCode, string(respBody))
 	}
 
-	return body, nil
+	return respBody, nil
 
 }
