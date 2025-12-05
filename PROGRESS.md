@@ -1256,21 +1256,23 @@ go run main.go images search --help
 
 ---
 
-## 🚧 Phase 6: API Keys Commands - IN PROGRESS
+## ✅ Phase 6: API Keys Commands - COMPLETED
 
-### What You've Built So Far:
+### What You Built:
 1. ✅ Modified `pkg/api/client.go` - Added request body support to `doRequest()`
 2. ✅ Created `pkg/api/keys.go` - Implemented all three API methods
-3. ⏳ TODO: Create `cmd/keys.go` - Build the CLI commands
+3. ✅ Created `cmd/keys.go` - Built CLI commands for key management
+4. ✅ Documented API security improvements needed
 
 ### Files Created/Modified:
 ```
 naturedopes-cli/
 ├── pkg/api/
-│   ├── client.go       ✅ Modified - Added body parameter to doRequest()
-│   └── keys.go         ✅ Created - GenerateKey, ListKeys, RevokeKey methods
-└── cmd/
-    └── keys.go         ⏳ TODO - Create CLI commands
+│   ├── client.go                    ✅ Modified - Added body parameter to doRequest()
+│   └── keys.go                      ✅ Created - GenerateKey, ListKeys, RevokeKey methods
+├── cmd/
+│   └── keys.go                      ✅ Created - list, generate, revoke commands
+└── API_SECURITY_IMPROVEMENTS.md     ✅ Created - Documentation for API hardening
 ```
 
 ### What You've Learned:
@@ -1417,36 +1419,140 @@ func (client *Client) RevokeKey(id int) error {
 }
 ```
 
-### Next Steps (After Lunch!):
-
-**Create `cmd/keys.go`** with three commands:
-
-1. **`keysCmd`** - Parent command
+#### 6. **API Authentication & The Bootstrap Problem**
 ```go
-var keysCmd = &cobra.Command{
-    Use:   "keys",
-    Short: "Manage API keys",
-}
+// API key endpoints are currently unprotected
+// This allows first-time users to create their first key
+// But creates security issues:
+// - Anyone can list ALL keys
+// - Anyone can revoke ANY key
 ```
 
-2. **`listKeysCmd`** - List all keys
+**The Bootstrap Problem:**
+- How do you authenticate to create an API key if you need an API key to authenticate?
+
+**Current Solution:**
+- `POST /api/keys` is unprotected (anyone can create)
+- `GET /api/keys` is unprotected (security issue - shows all keys)
+- `DELETE /api/keys/{id}` is unprotected (security issue - can revoke any key)
+
+**Better Solution (documented in API_SECURITY_IMPROVEMENTS.md):**
+- Add `user_id` to api_keys table
+- Users can only see/revoke their own keys
+- `POST /api/keys` remains unprotected for bootstrapping
+
+### Commands You Built:
+
 ```bash
+# List all API keys
 naturedopes-cli keys list
-```
 
-3. **`createKeyCmd`** - Create new key with `--name` flag
-```bash
-naturedopes-cli keys create --name "My Research Key"
-```
+# Generate new API key
+naturedopes-cli keys generate "My Research Key"
 
-4. **`revokeKeyCmd`** - Delete key by ID (positional argument)
-```bash
+# Revoke an API key by ID
 naturedopes-cli keys revoke 5
 ```
 
-5. **`init()`** - Wire everything together
+### Code You Wrote:
 
-### Key Achievements So Far:
+**cmd/keys.go** (complete):
+```go
+package cmd
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
+	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
+	"strconv"
+)
+
+var keysCmnd = &cobra.Command{
+	Use:   "keys",
+	Short: "For api key management",
+}
+
+var listKeys = &cobra.Command{
+	Use:   "list",
+	Short: "List api keys",
+	Args:  cobra.ExactArgs(0),
+	Run: func(command *cobra.Command, args []string) {
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		resp, error := client.ListKeys()
+		if error != nil {
+			fmt.Printf("could not get api keys: %v", error)
+			return
+		}
+
+		for _, k := range resp {
+			fmt.Printf("id: %v , name: %v, created: %v, expires: %v, last used: %v\n",
+				k.ID, k.Name, k.CreatedAt, k.ExpiresAt, k.LastUsed)
+		}
+	},
+}
+
+var generateKey = &cobra.Command{
+	Use:   "generate <name>",
+	Short: "Create new api key",
+	Args:  cobra.ExactArgs(1),
+	Run: func(command *cobra.Command, args []string) {
+		name := args[0]
+
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		resp, error := client.GenerateKey(name)
+		if error != nil {
+			fmt.Printf("could not generate api key: %v", error)
+			return
+		}
+
+		fmt.Printf("api key %v generated, key value: %v , please write this down. key will expire %v,",
+			resp.Name, resp.Key, resp.ExpiresAt)
+	},
+}
+
+var revokeKey = &cobra.Command{
+	Use:   "revoke <id>",
+	Short: "revoke api key by id",
+	Args:  cobra.ExactArgs(1),
+	Run: func(command *cobra.Command, args []string) {
+		id := args[0]
+
+		integer, err := strconv.Atoi(id)
+		if err != nil {
+			fmt.Printf("Error, invalid ID, please check you've supplied an integer as argument: %v\n", err)
+			return
+		}
+
+		baseUrl, _ := config.Get("api-url")
+		key, _ := config.Get("api-key")
+		client := api.NewClient(baseUrl, key)
+
+		error := client.RevokeKey(integer)
+		if error != nil {
+			fmt.Printf("could not delete api key, %v", error)
+			return
+		}
+
+		fmt.Printf("api key of id %v , has been successfully removed", integer)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(keysCmnd)
+	keysCmnd.AddCommand(listKeys)
+	keysCmnd.AddCommand(generateKey)
+	keysCmnd.AddCommand(revokeKey)
+}
+```
+
+### Key Achievements:
 - ✅ Learned POST requests with JSON body
 - ✅ Modified existing function to support request bodies
 - ✅ Understood DELETE requests
