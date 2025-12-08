@@ -5,7 +5,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
-	"strconv"
 )
 
 var keysCmnd = &cobra.Command{
@@ -58,30 +57,27 @@ var generateKey = &cobra.Command{
 }
 
 var revokeKey = &cobra.Command{
-	Use:   "revoke <id>",
-	Short: "revoke api key by id",
-	Args:  cobra.ExactArgs(1),
+	Use:   "revoke",
+	Short: "revoke the configured api key",
+	Args:  cobra.ExactArgs(0),
 	Run: func(command *cobra.Command, args []string) {
-		id := args[0]
-
-		integer, err := strconv.Atoi(id)
-		if err != nil {
-			fmt.Printf("Error, invalid ID, please check you've supplied an integer as argument: %v\n", err)
-			return
-		}
-
 		baseUrl, _ := config.Get("api-url")
 		key, _ := config.Get("api-key")
-		client := api.NewClient(baseUrl, key)
 
-		error := client.RevokeKey(integer)
-		if error != nil {
-			fmt.Printf("could not delete api key, %v", error)
+		if key == "" {
+			fmt.Println("Error: No API key configured. Use 'config set api-key <key>' first.")
 			return
 		}
 
-		fmt.Printf("api key of id %v , has been successfully removed", integer)
+		client := api.NewClient(baseUrl, key)
 
+		error := client.RevokeKey()
+		if error != nil {
+			fmt.Printf("could not delete api key: %v\n", error)
+			return
+		}
+
+		fmt.Println("Your API key has been successfully revoked")
 	},
 }
 

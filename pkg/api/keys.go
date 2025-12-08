@@ -37,7 +37,7 @@ func (client *Client) GenerateKey(name string) (*models.ApiKey, error) {
 func (client *Client) ListKeys() ([]models.ApiKey, error) {
 	var apiKeys []models.ApiKey
 
-	resp, err := client.doRequest("GET", "/api/keys", nil)
+	resp, err := client.doRequest("GET", "/api/keys/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not get apikeys: %w", err)
 	}
@@ -51,8 +51,35 @@ func (client *Client) ListKeys() ([]models.ApiKey, error) {
 
 }
 
-func (client *Client) RevokeKey(id int) error {
-	_, err := client.doRequest("DELETE", fmt.Sprintf("/api/keys/%d", id), nil)
+func (client *Client) GetKeyInfo(key string) (*models.ApiKey, error) {
+	var apiKey models.ApiKey
+
+	requestBody := struct {
+		ApiKey string `json:"api-key"`
+	}{
+		ApiKey: key,
+	}
+
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("could not create jsonData: %w", err)
+	}
+
+	resp, err := client.doRequest("GET", "/api/keys/get", jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("could not get api key; %w", err)
+	}
+
+	err = json.Unmarshal(resp, &apiKey)
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal response: %w", err)
+	}
+
+	return &apiKey, nil
+}
+
+func (client *Client) RevokeKey() error {
+	_, err := client.doRequest("DELETE", "/api/keys", nil)
 	if err != nil {
 		return fmt.Errorf("could not delete api-key: %w", err)
 	}
