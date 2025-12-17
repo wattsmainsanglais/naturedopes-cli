@@ -1,8 +1,8 @@
 # Nature Dopes CLI - Progress Tracker
 
-**Last Updated**: 2025-12-08
-**Current Phase**: Phase 6 - API Keys Commands (COMPLETED - Security Enhanced)
-**Next Phase**: Phase 7 - Polish & Error Handling
+**Last Updated**: 2025-12-17
+**Current Phase**: Phase 7 - Polish & Error Handling (IN PROGRESS)
+**Next Phase**: Phase 8 - Testing
 
 ---
 
@@ -1563,6 +1563,149 @@ func init() {
 - ✅ Documented comprehensive security improvements for the API
 - ✅ Built three working commands: list, generate, revoke
 
+### Phase 6 Testing Results - 2025-12-17
+
+**Testing Environment**: Live API on Railway (naturedopesapi-production.up.railway.app)
+
+#### ✅ Tests Passed:
+1. **Image Commands**:
+   - `images list` - Successfully retrieves all images from live API
+   - `images get <id>` - Successfully retrieves individual images
+   - `images search` - Sends query parameters correctly (API filtering not yet implemented)
+
+2. **API Key Commands**:
+   - `keys generate <name>` - Successfully creates new API keys
+   - `keys list` - Successfully lists all API keys
+   - `keys revoke` - Successfully revokes keys (soft delete with revoked=true)
+
+3. **Error Handling**:
+   - Invalid image IDs are caught and reported
+   - Invalid ID formats (non-integers) are validated
+
+#### 🐛 Issue Discovered:
+- **Missing Revoked Status Display**: The `keys list` command didn't show the `revoked` field, making it impossible to see which keys were revoked. (Fixed in Phase 7)
+
+#### 📝 Notes:
+- CLI successfully updated to match recent API changes:
+  - ✅ `ListKeys()` now calls `/api/keys/list` (not `/api/keys`)
+  - ✅ `RevokeKey()` now uses X-API-Key header (not path parameter)
+  - ✅ New `GetKeyInfo()` function added for `/api/keys/get` endpoint
+- API uses soft delete for keys (sets revoked=true, keeps record) - good design!
+- All endpoints work correctly with the deployed Railway API
+
+---
+
+## 🚧 Phase 7: Polish & Error Handling - IN PROGRESS
+
+**Started**: 2025-12-17
+**Status**: 40% Complete
+
+### Goals:
+- ✅ Fix missing revoked field display
+- ✅ Add confirmation prompts for destructive actions
+- 🚧 Improve error messages with actionable guidance
+- ⏳ Add input validation before API calls
+- ⏳ Better output formatting
+
+### What You've Built:
+
+#### 1. ✅ Fixed Revoked Field Display
+**File Modified**: `cmd/keys.go` (line 31)
+
+**Problem**: Keys list didn't show revoked status, so users couldn't tell which keys were revoked.
+
+**Solution**: Added `Revoked` field to output:
+```go
+fmt.Printf("id: %v , name: %v, key: %v, created: %v, expires: %v, last used: %v, revoked: %v\n",
+    k.ID, k.Name, k.Key[:8], k.CreatedAt, k.ExpiresAt, k.LastUsed, k.Revoked)
+```
+
+**Result**: Users can now see `revoked: true` or `revoked: false` for each key.
+
+#### 2. ✅ Added Confirmation Prompt for Revoke
+**File Modified**: `cmd/keys.go` (revokeKey command)
+
+**Problem**: Revoking a key is destructive and permanent - easy to do accidentally.
+
+**Solution**: Added interactive confirmation prompt:
+```go
+fmt.Print("Are you sure you want to revoke your API key? This cannot be undone. (yes/no): ")
+
+reader := bufio.NewReader(os.Stdin)
+response, _ := reader.ReadString('\n')
+response = strings.TrimSpace(strings.ToLower(response))
+
+if response != "yes" {
+    fmt.Println("Revoke cancelled.")
+    return
+}
+```
+
+**Result**: Users must type "yes" to confirm revocation, preventing accidental key deletion.
+
+### What You've Learned (Phase 7):
+
+#### 1. **Soft Delete Pattern**
+```go
+// Instead of deleting records:
+DELETE FROM api_keys WHERE id = 1
+
+// Mark as deleted (keeps history):
+UPDATE api_keys SET revoked = true WHERE id = 1
+```
+- Maintains audit trail
+- Allows recovery if needed
+- Standard practice for important data
+
+#### 2. **Buffered I/O (`bufio` package)**
+```go
+import "bufio"
+
+reader := bufio.NewReader(os.Stdin)  // Create buffered reader
+text, _ := reader.ReadString('\n')   // Read until Enter
+text = strings.TrimSpace(text)       // Remove whitespace
+```
+- **Buffer** = Temporary storage area in memory
+- Makes I/O operations more efficient (batch reads vs single character reads)
+- Like using a shopping cart instead of carrying items one by one
+
+#### 3. **Interactive User Prompts**
+```go
+fmt.Print("Question? (yes/no): ")     // Ask question
+reader := bufio.NewReader(os.Stdin)   // Get ready to read
+response, _ := reader.ReadString('\n') // Program PAUSES here waiting for input
+```
+- Program execution stops until user presses Enter
+- Good for confirmations of destructive actions
+- Improves user experience and prevents mistakes
+
+#### 4. **String Manipulation for Input**
+```go
+response = strings.TrimSpace(response)  // Remove whitespace and \n
+response = strings.ToLower(response)     // Convert to lowercase
+// Now "YES", "Yes", "yes" all become "yes"
+```
+- Makes input comparison more flexible
+- User-friendly (case-insensitive)
+
+### Next Steps (When You Return):
+
+#### 3. Improve Error Messages
+Add helpful error messages when config is missing:
+- Check if API key is set before making requests
+- Provide actionable guidance: "Run: naturedopes-cli keys generate <name>"
+- Better context in error messages
+
+#### 4. Input Validation
+- Validate URLs before saving to config
+- Check ID values are positive integers
+- Validate API key format
+
+#### 5. Better Output Formatting
+- Align columns in list outputs
+- Consider using a table library
+- Color coding (optional)
+
 ---
 
 ## 📊 Overall Progress
@@ -1574,49 +1717,31 @@ Phase 3: API Client              ███████████████�
 Phase 4: Images Commands         ████████████████████ 100% ✅
 Phase 5: Search Functionality    ████████████████████ 100% ✅
 Phase 6: API Keys Commands       ████████████████████ 100% ✅
-Phase 7: Polish & Error Handling ░░░░░░░░░░░░░░░░░░░░   0%
+Phase 7: Polish & Error Handling ████████░░░░░░░░░░░░  40%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ███████████████░░ 75% Complete
+Total Project: ████████████████░ 80% Complete
 ```
 
 ---
 
 ## 🎯 Quick Start for Next Session
 
-When you're ready to continue:
+**Current Status**: Phase 7 is 40% complete (2 of 5 tasks done)
 
-1. **Test Phase 6**: Run the commands to test key management
-2. **Say**: "I'm ready for Phase 7" or "Let's polish the CLI"
-3. **We'll build**: Better error handling, validation, and output formatting
+When you're ready to continue Phase 7:
 
-### Testing Phase 6:
-```bash
-# Generate a new API key
-go run main.go keys generate "Test Key"
+### Remaining Tasks:
+1. **Add helpful error messages** - Check if API key is configured before API calls
+2. **Add input validation** - Validate URLs, IDs, and other inputs before use
+3. **Improve output formatting** - Better table alignment and visual clarity
 
-# List all API keys
-go run main.go keys list
+### What You've Already Completed:
+- ✅ Fixed revoked field display in keys list
+- ✅ Added confirmation prompt for key revocation
 
-# Revoke a key (use an ID from the list)
-go run main.go keys revoke 1
-
-# Test error handling
-go run main.go keys revoke abc  # Should show error for invalid ID
-```
-
-### What You'll Build Next (Phase 7):
-- Better error messages and validation
-- Input validation before API calls
-- Improved output formatting (tables, colors)
-- Confirmation prompts for destructive actions
-- Handle edge cases gracefully
-
-### Key Concepts Preview:
-- **POST requests with body**: Sending JSON data to create resources
-- **Request body marshaling**: Converting Go structs to JSON
-- **DELETE requests**: Revoking/deleting resources
-- **Working with the ApiKey model**: Using the struct you already created
+### To Resume:
+Say "Let's continue Phase 7" or "Ready to add error messages"
 
 ---
 

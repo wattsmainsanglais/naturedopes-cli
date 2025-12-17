@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
@@ -28,7 +32,7 @@ var listKeys = &cobra.Command{
 		}
 
 		for _, k := range resp {
-			fmt.Printf("id: %v , name: %v, key: %v, created: %v, expires: %v, last used: %v\n", k.ID, k.Name, k.Key[:8], k.CreatedAt, k.ExpiresAt, k.LastUsed)
+			fmt.Printf("id: %v , name: %v, key: %v..., created: %v, expires: %v, last used: %v, revoked %v\n", k.ID, k.Name, k.Key[:8], k.CreatedAt, k.ExpiresAt, k.LastUsed, k.Revoked)
 		}
 
 	},
@@ -66,6 +70,16 @@ var revokeKey = &cobra.Command{
 
 		if key == "" {
 			fmt.Println("Error: No API key configured. Use 'config set api-key <key>' first.")
+			return
+		}
+
+		fmt.Printf("Are you sure you want to revoke your API key? This cannot be undone. (yes/no): ")
+		reader := bufio.NewReader(os.Stdin)
+		response, _ := reader.ReadString('\n')
+		response = strings.TrimSpace(strings.ToLower(response))
+
+		if response != "yes" {
+			fmt.Println("Revoke cancelled")
 			return
 		}
 
