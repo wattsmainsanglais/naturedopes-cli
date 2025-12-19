@@ -20,6 +20,11 @@ var listImagesCmd = &cobra.Command{
 	Run: func(command *cobra.Command, args []string) {
 		baseUrl, _ := config.Get("api-url")
 		key, _ := config.Get("api-key")
+
+		if !checkApiKey(key) {
+			return
+		}
+
 		client := api.NewClient(baseUrl, key)
 
 		resp, err := client.ListImages()
@@ -49,6 +54,10 @@ var getImageCmd = &cobra.Command{
 
 		baseUrl, _ := config.Get("api-url")
 		key, _ := config.Get("api-key")
+
+		if !checkApiKey(key) {
+			return
+		}
 		client := api.NewClient(baseUrl, key)
 
 		image, err := client.GetImage(integer)
@@ -78,6 +87,10 @@ var searchImagesCmd = &cobra.Command{
 
 		baseUrl, _ := config.Get("api-url")
 		key, _ := config.Get("api-key")
+
+		if !checkApiKey(key) {
+			return
+		}
 		client := api.NewClient(baseUrl, key)
 
 		images, err := client.SearchImages(name, idInt)
