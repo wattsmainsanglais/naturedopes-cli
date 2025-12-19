@@ -20,6 +20,12 @@ var setCmd = &cobra.Command{
 		key := args[0]
 		value := args[1]
 
+		if key == "api-url" {
+			if !validUrl(value) {
+				return
+			}
+		}
+
 		err := config.Set(key, value)
 		if err != nil {
 			fmt.Printf("could not set: %v\n", err)

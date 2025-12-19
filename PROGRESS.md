@@ -1598,13 +1598,14 @@ func init() {
 ## 🚧 Phase 7: Polish & Error Handling - IN PROGRESS
 
 **Started**: 2025-12-17
-**Status**: 40% Complete
+**Last Updated**: 2025-12-19
+**Status**: 75% Complete
 
 ### Goals:
 - ✅ Fix missing revoked field display
 - ✅ Add confirmation prompts for destructive actions
-- 🚧 Improve error messages with actionable guidance
-- ⏳ Add input validation before API calls
+- ✅ Improve error messages with actionable guidance
+- ✅ Add input validation before API calls (mostly complete, see notes)
 - ⏳ Better output formatting
 
 ### What You've Built:
@@ -1642,6 +1643,79 @@ if response != "yes" {
 ```
 
 **Result**: Users must type "yes" to confirm revocation, preventing accidental key deletion.
+
+#### 3. ✅ Added Helper Function for API Key Validation
+**File Created**: `cmd/helpers.go`
+**Date**: 2025-12-19
+
+**Problem**: Repeated code checking for API keys across multiple commands.
+
+**Solution**: Created reusable helper function following DRY principle:
+```go
+func checkApiKey(apiKey string) bool {
+    if apiKey == "" {
+        fmt.Println("Error: No API key configured.")
+        fmt.Println("To get started, generate an API key:")
+        fmt.Println("  naturedopes-cli keys generate <name>")
+        return false
+    }
+    return true
+}
+```
+
+**Integration**: Added to all image commands that require authentication:
+- `listImagesCmd` (line 24-26 in images.go)
+- `getImageCmd` (line 62-64 in images.go)
+- `searchImagesCmd` (line 95-97 in images.go)
+
+**Result**: Clear, actionable error messages when API key is missing.
+
+#### 4. ✅ Added Input Validation Helpers
+**File Modified**: `cmd/helpers.go`
+**Date**: 2025-12-19
+
+**Created two validation functions:**
+
+1. **Positive Integer Validation**:
+```go
+func validatePositiveInt(id int) bool {
+    if id <= 0 {
+        fmt.Printf("Error: Id numbers must be greater than zero, got: %d\n", id)
+        return false
+    }
+    return true
+}
+```
+- Integrated in `getImageCmd` (line 55-57 in images.go)
+- Validates image IDs are positive before making API calls
+
+2. **URL Validation**:
+```go
+func validUrl(urlString string) bool {
+    parsedUrl, err := url.Parse(urlString)
+    if err != nil {
+        fmt.Printf("Error: please use a valid url for the api-url field, got: %s\n", urlString)
+        return false
+    }
+    return true
+}
+```
+- Integrated in `setCmd` (line 23-27 in config.go)
+- Validates URLs before saving to config
+
+**⚠️ Known Issue - URL Validation Too Lenient**:
+The current `url.Parse()` accepts almost anything (e.g., "not-a-valid-url" passes).
+**Needs improvement**: Add scheme validation to require `http://` or `https://`:
+
+```go
+// TODO: Enhance validUrl function
+if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+    fmt.Printf("Error: URL must start with http:// or https://, got: %s\n", urlString)
+    return false
+}
+```
+
+**Result**: Basic input validation in place, prevents invalid data from reaching API.
 
 ### What You've Learned (Phase 7):
 
@@ -1688,23 +1762,84 @@ response = strings.ToLower(response)     // Convert to lowercase
 - Makes input comparison more flexible
 - User-friendly (case-insensitive)
 
+#### 5. **DRY Principle (Don't Repeat Yourself)**
+```go
+// BAD - Repeating the same validation in multiple places ❌
+func command1() {
+    if key == "" {
+        fmt.Println("Error...")
+        return
+    }
+}
+func command2() {
+    if key == "" {
+        fmt.Println("Error...")  // Same code repeated!
+        return
+    }
+}
+
+// GOOD - Extract to reusable function ✅
+func checkApiKey(key string) bool {
+    if key == "" {
+        fmt.Println("Error...")
+        return false
+    }
+    return true
+}
+```
+- Reduces code duplication
+- Easier to maintain (change once, applies everywhere)
+- Standard software engineering best practice
+
+#### 6. **Shell Quote Issues**
+**Problem**: Smart quotes (curly quotes like `"` or `"`) from copy-paste cause shell to hang with `>` prompt
+**Solution**: Always use straight quotes `"` when typing commands, or omit quotes for values without spaces
+**Lesson**: Be careful when copying commands from documentation or other sources
+
+#### 7. **URL Parsing in Go (`net/url` package)**
+```go
+import "net/url"
+
+parsedUrl, err := url.Parse("https://example.com/path")
+// parsedUrl.Scheme = "https"
+// parsedUrl.Host = "example.com"
+// parsedUrl.Path = "/path"
+```
+- `url.Parse()` is very lenient - accepts almost anything without error
+- Need to validate scheme, host separately for strict validation
+- Good for parsing, needs additional checks for validation
+
 ### Next Steps (When You Return):
 
-#### 3. Improve Error Messages
-Add helpful error messages when config is missing:
-- Check if API key is set before making requests
-- Provide actionable guidance: "Run: naturedopes-cli keys generate <name>"
-- Better context in error messages
+#### 1. ✅ COMPLETED: Improve Error Messages
+- ✅ Check if API key is set before making requests
+- ✅ Provide actionable guidance: "Run: naturedopes-cli keys generate <name>"
+- ✅ Better context in error messages
 
-#### 4. Input Validation
-- Validate URLs before saving to config
-- Check ID values are positive integers
-- Validate API key format
+#### 2. 🚧 MOSTLY DONE: Input Validation
+- ✅ Check ID values are positive integers
+- ⚠️ Validate URLs before saving to config (needs improvement - add scheme check)
+- ⏳ Validate API key format (optional - not critical)
 
-#### 5. Better Output Formatting
+**TODO - Improve URL Validation**:
+Edit `cmd/helpers.go` to add scheme validation in `validUrl()` function:
+```go
+if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+    fmt.Printf("Error: URL must start with http:// or https://, got: %s\n", urlString)
+    return false
+}
+```
+
+#### 3. ⏳ TODO: Better Output Formatting
 - Align columns in list outputs
-- Consider using a table library
-- Color coding (optional)
+- Consider using a table library (like `github.com/olekukonko/tablewriter`)
+- Color coding (optional - use `github.com/fatih/color`)
+- Consistent spacing and formatting across all commands
+
+**Files to Modify**:
+- `cmd/images.go` - Format image list output
+- `cmd/keys.go` - Format key list output (already improved with revoked field)
+- `cmd/config.go` - Format config list output
 
 ---
 
@@ -1717,31 +1852,39 @@ Phase 3: API Client              ███████████████�
 Phase 4: Images Commands         ████████████████████ 100% ✅
 Phase 5: Search Functionality    ████████████████████ 100% ✅
 Phase 6: API Keys Commands       ████████████████████ 100% ✅
-Phase 7: Polish & Error Handling ████████░░░░░░░░░░░░  40%
+Phase 7: Polish & Error Handling ███████████████░░░░░  75%
 Phase 8: Testing                 ░░░░░░░░░░░░░░░░░░░░   0%
 
-Total Project: ████████████████░ 80% Complete
+Total Project: ██████████████████░ 90% Complete
 ```
 
 ---
 
 ## 🎯 Quick Start for Next Session
 
-**Current Status**: Phase 7 is 40% complete (2 of 5 tasks done)
+**Current Status**: Phase 7 is 75% complete (4 of 5 tasks done)
 
 When you're ready to continue Phase 7:
 
 ### Remaining Tasks:
-1. **Add helpful error messages** - Check if API key is configured before API calls
-2. **Add input validation** - Validate URLs, IDs, and other inputs before use
-3. **Improve output formatting** - Better table alignment and visual clarity
+1. **Improve URL validation** - Add http/https scheme check to `validUrl()` in `cmd/helpers.go`
+2. **Better output formatting** - Table alignment, consider using a table library, color coding (optional)
 
 ### What You've Already Completed:
 - ✅ Fixed revoked field display in keys list
 - ✅ Added confirmation prompt for key revocation
+- ✅ Created helper functions for validation (DRY principle)
+- ✅ Added API key validation to all image commands
+- ✅ Added positive integer validation for IDs
+- ✅ Added basic URL validation (needs scheme check improvement)
+
+### Files Created/Modified in This Session (2025-12-19):
+- **Created**: `cmd/helpers.go` - Validation helper functions
+- **Modified**: `cmd/images.go` - Added API key and ID validation
+- **Modified**: `cmd/config.go` - Added URL validation
 
 ### To Resume:
-Say "Let's continue Phase 7" or "Ready to add error messages"
+Say "Let's continue Phase 7" or "Ready to improve output formatting"
 
 ---
 

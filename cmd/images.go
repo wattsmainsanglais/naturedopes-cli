@@ -52,6 +52,10 @@ var getImageCmd = &cobra.Command{
 			return
 		}
 
+		if !validatePositiveInt(integer) {
+			return
+		}
+
 		baseUrl, _ := config.Get("api-url")
 		key, _ := config.Get("api-key")
 
@@ -83,6 +87,12 @@ var searchImagesCmd = &cobra.Command{
 		if err != nil {
 			fmt.Printf("could not convert to integer: %s\n ", err)
 			return
+		}
+
+		if idInt == 0 {
+			if !validatePositiveInt(idInt) {
+				return
+			}
 		}
 
 		baseUrl, _ := config.Get("api-url")
