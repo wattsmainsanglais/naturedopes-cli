@@ -96,7 +96,7 @@ var searchImagesCmd = &cobra.Command{
 			return
 		}
 
-		if idInt == 0 {
+		if idInt != 0 {
 			if !validatePositiveInt(idInt) {
 				return
 			}
