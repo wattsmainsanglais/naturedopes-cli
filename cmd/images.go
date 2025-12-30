@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
-	"strconv"
 )
 
 var imagesCmd = &cobra.Command{
@@ -33,10 +36,14 @@ var listImagesCmd = &cobra.Command{
 			return
 		}
 
-		for _, image := range resp {
-			fmt.Printf("name: %s, gps_long: %f, gps_lat: %f, image_path: %s\n", image.SpeciesName, image.GpsLong, image.GpsLat, image.ImagePath)
-		}
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"ID", "Species", "GPS Long", "GPS Lat", "Image Path"})
 
+		for _, image := range resp {
+			table.Append([]string{fmt.Sprintf("%d", image.ID), image.SpeciesName, fmt.Sprintf("%f", image.GpsLong), fmt.Sprintf("%f", image.GpsLat), image.ImagePath})
+
+		}
+		table.Render()
 	},
 }
 
@@ -110,6 +117,7 @@ var searchImagesCmd = &cobra.Command{
 		}
 
 		for _, i := range images {
+
 			fmt.Printf("id:%d species_name: %s, gps_long: %f, gps_lat: %f, image_path: %s user_id: %d\n", i.ID, i.SpeciesName, i.GpsLong, i.GpsLat, i.ImagePath, i.UserID)
 		}
 

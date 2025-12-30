@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/api"
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/config"
@@ -31,9 +32,16 @@ var listKeys = &cobra.Command{
 			return
 		}
 
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"ID", "Name", "Key", "Created", "Expires", "Last Used", "Revoked"})
 		for _, k := range resp {
-			fmt.Printf("id: %v , name: %v, key: %v..., created: %v, expires: %v, last used: %v, revoked %v\n", k.ID, k.Name, k.Key[:8], k.CreatedAt, k.ExpiresAt, k.LastUsed, k.Revoked)
+			lastUsedStr := "Never"
+			if k.LastUsed != nil {
+				lastUsedStr = *k.LastUsed
+			}
+			table.Append([]string{fmt.Sprintf("%d", k.ID), k.Name, fmt.Sprintf("%v...", k.Key[:8]), k.CreatedAt, k.ExpiresAt, lastUsedStr, fmt.Sprintf("%v", k.Revoked)})
 		}
+		table.Render()
 
 	},
 }
@@ -55,7 +63,7 @@ var generateKey = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("api key %v generated, key value: %v , please save this key now (you won't be able to see it again). key will expire %v,", resp.Name, resp.Key, resp.ExpiresAt)
+		fmt.Printf("api key %v generated, key value: %v , please save this key now (you won't be able to see it again). key will expire %v,\n", resp.Name, resp.Key, resp.ExpiresAt)
 
 	},
 }

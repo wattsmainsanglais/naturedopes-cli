@@ -32,7 +32,7 @@ var setCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("New %v has been set", key)
+		fmt.Printf("New %v has been set\n", key)
 
 	},
 }

@@ -24,10 +24,16 @@ func validatePositiveInt(id int) bool {
 }
 
 func validUrl(urlString string) bool {
-	_, err := url.Parse(urlString)
+	parsedUrl, err := url.Parse(urlString)
 	if err != nil {
-		fmt.Printf("Error: please use a valid url for the api-url field, got: %s", urlString)
+		fmt.Printf("Error: please use a valid url for the api-url field, got: %s\n", urlString)
 		return false
 	}
+
+	if parsedUrl.Scheme != "http" && parsedUrl.Scheme != "https" {
+		fmt.Printf("Error: only valid urls starting with http or https are accepted, got: %s\n", urlString)
+		return false
+	}
+
 	return true
 }
