@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,7 +22,7 @@ func NewClient(BaseUrl string, APIKey string) *Client {
 	}
 }
 
-func (c *Client) doRequest(method string, path string, body []byte) ([]byte, error) {
+func (c *Client) doRequest(ctx context.Context, method string, path string, body []byte) ([]byte, error) {
 
 	url := c.BaseUrl + path
 	var reqBody io.Reader = nil
@@ -29,7 +30,7 @@ func (c *Client) doRequest(method string, path string, body []byte) ([]byte, err
 		reqBody = bytes.NewBuffer(body)
 	}
 
-	req, err := http.NewRequest(method, url, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("could not create http request err: %w", err)
 	}
@@ -44,6 +45,9 @@ func (c *Client) doRequest(method string, path string, body []byte) ([]byte, err
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("request cancelled, %w", ctx.Err())
+		}
 		return nil, fmt.Errorf("could not send request err: %w", err)
 	}
 

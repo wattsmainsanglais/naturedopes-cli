@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -30,8 +32,17 @@ var listImagesCmd = &cobra.Command{
 
 		client := api.NewClient(baseUrl, key)
 
-		resp, err := client.ListImages()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		resp, err := client.ListImages(ctx)
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 30 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+
+			}
 			fmt.Printf("could not retrieve images: %v\n", err)
 			return
 		}
@@ -71,8 +82,17 @@ var getImageCmd = &cobra.Command{
 		}
 		client := api.NewClient(baseUrl, key)
 
-		image, err := client.GetImage(integer)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		image, err := client.GetImage(ctx, integer)
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 10 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+
+			}
 			fmt.Printf("could not retrieve image data: %v\n", err)
 			return
 		}
@@ -110,8 +130,17 @@ var searchImagesCmd = &cobra.Command{
 		}
 		client := api.NewClient(baseUrl, key)
 
-		images, err := client.SearchImages(name, idInt)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		images, err := client.SearchImages(ctx, name, idInt)
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 30 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+
+			}
 			fmt.Printf("could not return images: %s\n", err)
 			return
 		}
