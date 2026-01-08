@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/wattsmainsanglais/naturedopes-cli/pkg/models"
 )
 
-func (client *Client) GenerateKey(name string) (*models.ApiKey, error) {
+func (client *Client) GenerateKey(ctx context.Context, name string) (*models.ApiKey, error) {
 	var apiKey models.ApiKey
 
 	requestBody := struct {
@@ -20,7 +22,7 @@ func (client *Client) GenerateKey(name string) (*models.ApiKey, error) {
 		return nil, fmt.Errorf("could not create jsonData: %w", err)
 	}
 
-	resp, err := client.doRequest("POST", "/api/keys", jsonData)
+	resp, err := client.doRequest(ctx, "POST", "/api/keys", jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("could not create api keys from naturedopesApi: %w", err)
 	}
@@ -34,10 +36,10 @@ func (client *Client) GenerateKey(name string) (*models.ApiKey, error) {
 
 }
 
-func (client *Client) ListKeys() ([]models.ApiKey, error) {
+func (client *Client) ListKeys(ctx context.Context) ([]models.ApiKey, error) {
 	var apiKeys []models.ApiKey
 
-	resp, err := client.doRequest("GET", "/api/keys/list", nil)
+	resp, err := client.doRequest(ctx, "GET", "/api/keys/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("could not get apikeys: %w", err)
 	}
@@ -51,7 +53,7 @@ func (client *Client) ListKeys() ([]models.ApiKey, error) {
 
 }
 
-func (client *Client) GetKeyInfo(key string) (*models.ApiKey, error) {
+func (client *Client) GetKeyInfo(ctx context.Context, key string) (*models.ApiKey, error) {
 	var apiKey models.ApiKey
 
 	requestBody := struct {
@@ -65,7 +67,7 @@ func (client *Client) GetKeyInfo(key string) (*models.ApiKey, error) {
 		return nil, fmt.Errorf("could not create jsonData: %w", err)
 	}
 
-	resp, err := client.doRequest("GET", "/api/keys/get", jsonData)
+	resp, err := client.doRequest(ctx, "GET", "/api/keys/get", jsonData)
 	if err != nil {
 		return nil, fmt.Errorf("could not get api key; %w", err)
 	}
@@ -78,8 +80,8 @@ func (client *Client) GetKeyInfo(key string) (*models.ApiKey, error) {
 	return &apiKey, nil
 }
 
-func (client *Client) RevokeKey() error {
-	_, err := client.doRequest("DELETE", "/api/keys", nil)
+func (client *Client) RevokeKey(ctx context.Context) error {
+	_, err := client.doRequest(ctx, "DELETE", "/api/keys", nil)
 	if err != nil {
 		return fmt.Errorf("could not delete api-key: %w", err)
 	}

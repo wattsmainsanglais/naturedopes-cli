@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -26,8 +28,16 @@ var listKeys = &cobra.Command{
 		key, _ := config.Get("api-key")
 		client := api.NewClient(baseUrl, key)
 
-		resp, error := client.ListKeys()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		resp, error := client.ListKeys(ctx)
 		if error != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 30 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+			}
 			fmt.Printf("could not get api keys: %v", error)
 			return
 		}
@@ -57,8 +67,16 @@ var generateKey = &cobra.Command{
 		key, _ := config.Get("api-key")
 		client := api.NewClient(baseUrl, key)
 
-		resp, error := client.GenerateKey(name)
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		resp, error := client.GenerateKey(ctx, name)
 		if error != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 15 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+			}
 			fmt.Printf("could not generate api key: %v", error)
 			return
 		}
@@ -93,8 +111,16 @@ var revokeKey = &cobra.Command{
 
 		client := api.NewClient(baseUrl, key)
 
-		error := client.RevokeKey()
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		error := client.RevokeKey(ctx)
 		if error != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Error: Request timed out after 15 seconds")
+				fmt.Println("The API might be slow or unavailable. Try again later.")
+				return
+			}
 			fmt.Printf("could not delete api key: %v\n", error)
 			return
 		}
